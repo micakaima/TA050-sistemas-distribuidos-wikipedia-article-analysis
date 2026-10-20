@@ -1,0 +1,11 @@
+services:
+  client_0:
+    build:
+      context: .
+      dockerfile: src/client/Dockerfile
+    container_name: client_0
+    # depends_on:
+    # environment:
+    volumes:
+      - ./data/input:/input
+      - ./data/output:/output
