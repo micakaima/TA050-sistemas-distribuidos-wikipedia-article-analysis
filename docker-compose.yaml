@@ -4,8 +4,22 @@ services:
       context: .
       dockerfile: src/client/Dockerfile
     container_name: client_0
-    # depends_on:
-    # environment:
+    environment:
+      - INPUT_DIR=/input/input_0
+      - OUTPUT_DIR=/output/output_0
+      - SERVER_HOST=gateway
+      - SERVER_PORT=5678
+      - BATCH_SIZE=5
     volumes:
       - ./data/input:/input
       - ./data/output:/output
+
+  gateway:
+    build:
+      context: .
+      dockerfile: src/gateway/Dockerfile
+    container_name: gateway
+    environment:
+      - SERVER_HOST=gateway
+      - SERVER_PORT=5678
+

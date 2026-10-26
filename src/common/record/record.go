@@ -1,20 +1,25 @@
 package record
 
-import "bytes"
-import "encoding/gob"
-import "github.com/parquet-go/parquet-go"
+import (
+	"bytes"
+	"encoding/gob"
+	"io"
 
+	"github.com/parquet-go/parquet-go"
+)
 
 type Record struct {
-	Abstract string `parquet:"abstract"`
-	DateModified int64 `parquet:"date_modified"`
-	Image struct {
+	Abstract     string `parquet:"abstract"`
+	DateModified int64  `parquet:"date_modified"`
+	Image        struct {
 		ContentURL string `parquet:"content_url"`
 	} `parquet:"image"`
-	InLanguage string   `parquet:"in_language"`
-	Name       string   `parquet:"name"`
-	Sections   string `parquet:"sections"`
-	URL        string   `parquet:"url"`
+	InLanguage struct {
+		Identifier string `parquet:"identifier"`
+	} `parquet:"in_language"`
+	Name     string `parquet:"name"`
+	Sections string `parquet:"sections"`
+	URL      string `parquet:"url"`
 }
 
 func ParseParquetBatchToRecords(batch []byte) ([]Record, error) {
@@ -26,13 +31,15 @@ func ParseParquetBatchToRecords(batch []byte) ([]Record, error) {
 
 	for {
 		n, err := reader.Read(buf)
-		if n == 0 {  // EOF
-			break
+		if n > 0 {
+			records = append(records, buf[:n]...)
 		}
 		if err != nil {
+			if err == io.EOF {
+				break
+			}
 			return nil, err
 		}
-		records = append(records, buf[:n]...)
 	}
 	return records, nil
 }

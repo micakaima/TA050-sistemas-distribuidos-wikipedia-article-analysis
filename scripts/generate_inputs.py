@@ -1,7 +1,6 @@
 import os
 import kagglehub
 import argparse
-import pandas as pd
 import shutil
 
 KAGGLE_DATASET_BASE_PATH = "wikimedia-foundation/wikipedia-structured-contents"
