@@ -13,6 +13,8 @@ type Record struct {
 	DateModified int64  `parquet:"date_modified"`
 	Image        struct {
 		ContentURL string `parquet:"content_url"`
+		Bytes 	[]byte `parquet:"-"`
+		Error 	string `parquet:"-"`
 	} `parquet:"image"`
 	InLanguage struct {
 		Identifier string `parquet:"identifier"`
@@ -20,6 +22,7 @@ type Record struct {
 	Name     string `parquet:"name"`
 	Sections string `parquet:"sections"`
 	URL      string `parquet:"url"`
+	Identifier string `parquet:"identifier"`
 }
 
 func ParseParquetBatchToRecords(batch []byte) ([]Record, error) {
