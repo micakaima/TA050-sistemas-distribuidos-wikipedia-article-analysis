@@ -41,3 +41,70 @@ services:
     - 5672:5672
     - 15672:15672
 
+  column_filter:
+    build:
+      context: .
+      dockerfile: src/workers/column_filter/Dockerfile
+    container_name: column_filter
+    depends_on:
+      - year_filter
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE=raw_articles_queue
+      - OUTPUT_QUEUE_Q1_TO_Q2=q1q2_queue
+      - OUTPUT_QUEUE_Q3_TO_Q5=q3q5_queue
+
+  year_filter:
+    build:
+      context: .
+      dockerfile: src/workers/year_filter/Dockerfile
+    container_name: year_filter
+    depends_on:
+      - english_filter
+      - bio_filter
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE=q1q2_queue
+      - OUTPUT_QUEUE=year_filtered_queue
+      - YEAR=2020
+
+  english_filter:
+    build:
+      context: .
+      dockerfile: src/workers/english_filter/Dockerfile
+    container_name: english_filter
+    depends_on:
+      - gateway
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE=year_filtered_queue
+      - OUTPUT_QUEUE=q1_results_queue
+
+  bio_filter:
+      build:
+        context: .
+        dockerfile: src/workers/bio_filter/Dockerfile
+      container_name: bio_filter
+      depends_on:
+        - gateway
+      environment:
+        - MOM_HOST=rabbitmq
+        - MOM_PORT=5672
+        - INPUT_QUEUE=year_filtered_queue
+        - OUTPUT_QUEUE=image_download_queue
+    
+  image_downloader:
+    build:
+      context: .
+      dockerfile: src/workers/image_downloader/Dockerfile
+    container_name: image_downloader
+    depends_on:
+      - gateway
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE=image_download_queue
+      - OUTPUT_QUEUE=q2_results_queue
