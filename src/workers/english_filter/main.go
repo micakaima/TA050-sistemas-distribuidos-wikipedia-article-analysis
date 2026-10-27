@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 
 	"src/workers/english_filter/english_filter"
 )
@@ -20,9 +21,14 @@ func loadConfig() (english_filter.Config, error) {
 		return english_filter.Config{}, errors.New("MOM_HOST environment variable is required")
 	}
 
-	inputQueue := os.Getenv("INPUT_QUEUE")
-	if inputQueue == "" {
-		return english_filter.Config{}, errors.New("INPUT_QUEUE environment variable is required")
+	routingKeys := strings.Split(os.Getenv("ROUTING_KEYS"), ",")
+	if len(routingKeys) == 0 || routingKeys[0] == "" {
+		return english_filter.Config{}, errors.New("ROUTING_KEYS environment variable is required and must be a comma-separated list")
+	}
+
+	inputExchange := os.Getenv("INPUT_EXCHANGE")
+	if inputExchange == "" {
+		return english_filter.Config{}, errors.New("INPUT_EXCHANGE environment variable is required")
 	}
 
 	outputQueue := os.Getenv("OUTPUT_QUEUE")
@@ -33,8 +39,9 @@ func loadConfig() (english_filter.Config, error) {
 	return english_filter.Config{
 		MomHost:     momHost,
 		MomPort:     momPort,
-		InputQueue:  inputQueue,
+		InputExchange:  inputExchange,
 		OutputQueue: outputQueue,
+		RoutingKeys: routingKeys,
 	}, nil
 }
 

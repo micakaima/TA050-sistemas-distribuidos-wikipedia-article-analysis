@@ -67,7 +67,8 @@ services:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - INPUT_QUEUE=q1q2_queue
-      - OUTPUT_QUEUE=year_filtered_queue
+      - OUTPUT_EXCHANGE=year_filtered_exchange
+      - ROUTING_KEYS=english,bio
       - YEAR=2020
 
   english_filter:
@@ -80,21 +81,23 @@ services:
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - INPUT_QUEUE=year_filtered_queue
+      - INPUT_EXCHANGE=year_filtered_exchange
       - OUTPUT_QUEUE=q1_results_queue
+      - ROUTING_KEYS=english
 
   bio_filter:
-      build:
-        context: .
-        dockerfile: src/workers/bio_filter/Dockerfile
-      container_name: bio_filter
-      depends_on:
-        - gateway
-      environment:
-        - MOM_HOST=rabbitmq
-        - MOM_PORT=5672
-        - INPUT_QUEUE=year_filtered_queue
-        - OUTPUT_QUEUE=image_download_queue
+    build:
+      context: .
+      dockerfile: src/workers/bio_filter/Dockerfile
+    container_name: bio_filter
+    depends_on:
+      - gateway
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_EXCHANGE=year_filtered_exchange
+      - OUTPUT_QUEUE=image_download_queue
+      - ROUTING_KEYS=bio
     
   image_downloader:
     build:

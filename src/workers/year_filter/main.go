@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 
 	"src/workers/year_filter/year_filter"
 )
@@ -25,9 +26,14 @@ func loadConfig() (year_filter.Config, error) {
 		return year_filter.Config{}, errors.New("INPUT_QUEUE environment variable is required")
 	}
 
-	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if outputQueue == "" {
-		return year_filter.Config{}, errors.New("OUTPUT_QUEUE environment variable is required")
+	outputExchange := os.Getenv("OUTPUT_EXCHANGE")
+	if outputExchange == "" {
+		return year_filter.Config{}, errors.New("OUTPUT_EXCHANGE environment variable is required")
+	}
+
+	routingKeys := strings.Split(os.Getenv("ROUTING_KEYS"), ",")
+	if len(routingKeys) == 0 || routingKeys[0] == "" {
+		return year_filter.Config{}, errors.New("ROUTING_KEYS environment variable is required and must be a comma-separated list")
 	}
 
 	year, err := strconv.Atoi(os.Getenv("YEAR"))
@@ -39,7 +45,8 @@ func loadConfig() (year_filter.Config, error) {
 		MomHost:     momHost,
 		MomPort:     momPort,
 		InputQueue:  inputQueue,
-		OutputQueue: outputQueue,
+		OutputExchange: outputExchange,
+		RoutingKeys: routingKeys,
 		Year:          year,
 	}, nil
 }

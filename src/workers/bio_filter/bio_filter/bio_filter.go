@@ -14,29 +14,30 @@ import (
 type Config struct {
 	MomHost     string
 	MomPort     int
-	InputQueue  string
+	RoutingKeys []string
+	InputExchange  string
 	OutputQueue string
 }
 
 type BioFilterWorker struct {
-	inputQueue        middleware.Middleware
+	inputExchange     middleware.Middleware
 	outputQueue       middleware.Middleware
 }
 
 func New(config Config) (*BioFilterWorker, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
-	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueue, connSettings)
+	inputExchange, err := middleware.CreateExchangeMiddleware(config.InputExchange, config.RoutingKeys, connSettings)
 	if err != nil {
 		return nil, err
 	}
 	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
 	if err != nil {
-		inputQueue.Close()
+		inputExchange.Close()
 		return nil, err
 	}
 	return &BioFilterWorker{
-		inputQueue:  inputQueue,
+		inputExchange:  inputExchange,
 		outputQueue: outputQueue,
 	}, nil
 }
@@ -49,14 +50,14 @@ func (w *BioFilterWorker) Run() {
 
 	go func() {
 		defer wg.Done()
-		w.inputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
+		w.inputExchange.StartConsuming(func(msg middleware.Message, ack, nack func()) {
 			w.handleMessage(msg, ack, nack)
 		})
 	}()
 
 	<-signals
 	slog.Info("Graceful shutdown started...")
-	w.inputQueue.StopConsuming()
+	w.inputExchange.StopConsuming()
 	wg.Wait()
 	w.shutdown()
 }
@@ -80,8 +81,8 @@ func (w *BioFilterWorker) handleMessage(msg middleware.Message, ack, nack func()
 }
 
 func (w *BioFilterWorker) shutdown() {
-	if err := w.inputQueue.Close(); err != nil {
-		slog.Error("While closing input queue", "err", err)
+	if err := w.inputExchange.Close(); err != nil {
+		slog.Error("While closing input exchange", "err", err)
 	}
 	if err := w.outputQueue.Close(); err != nil {
 		slog.Error("While closing output queue", "err", err)

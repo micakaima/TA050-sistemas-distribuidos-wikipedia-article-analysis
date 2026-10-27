@@ -15,13 +15,14 @@ type Config struct {
 	MomHost     string
 	MomPort     int
 	InputQueue  string
-	OutputQueue string
+	OutputExchange string
+	RoutingKeys []string
 	Year        int
 }
 
 type YearFilterWorker struct {
 	inputQueue        middleware.Middleware
-	outputQueue       middleware.Middleware
+	outputExchange    middleware.Middleware
 	year 			  int
 }
 
@@ -32,14 +33,15 @@ func New(config Config) (*YearFilterWorker, error) {
 	if err != nil {
 		return nil, err
 	}
-	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
+
+	outputExchange, err := middleware.CreateExchangeMiddleware(config.OutputExchange, config.RoutingKeys, connSettings)
 	if err != nil {
 		inputQueue.Close()
 		return nil, err
 	}
 	return &YearFilterWorker{
 		inputQueue:  inputQueue,
-		outputQueue: outputQueue,
+		outputExchange: outputExchange,
 		year:        config.Year,
 	}, nil
 }
@@ -79,14 +81,14 @@ func (w *YearFilterWorker) handleMessage(msg middleware.Message, ack, nack func(
 		slog.Error("While serializing record", "err", err) 
 		return
 	}
-	w.outputQueue.Send(middleware.Message{Body: string(bytes)})
+	w.outputExchange.Send(middleware.Message{Body: string(bytes)})
 }
 
 func (w *YearFilterWorker) shutdown() {
 	if err := w.inputQueue.Close(); err != nil {
 		slog.Error("While closing input queue", "err", err)
 	}
-	if err := w.outputQueue.Close(); err != nil {
-		slog.Error("While closing output queue", "err", err)
+	if err := w.outputExchange.Close(); err != nil {
+		slog.Error("While closing output exchange", "err", err)
 	}
 }
