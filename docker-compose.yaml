@@ -4,6 +4,8 @@ services:
       context: .
       dockerfile: src/client/Dockerfile
     container_name: client_0
+    depends_on:
+      - gateway
     environment:
       - INPUT_DIR=/input/input_0
       - OUTPUT_DIR=/output/output_0
@@ -13,7 +15,6 @@ services:
     volumes:
       - ./data/input:/input
       - ./data/output:/output
-
   gateway:
     build:
       context: .
@@ -22,4 +23,21 @@ services:
     environment:
       - SERVER_HOST=gateway
       - SERVER_PORT=5678
+
+  rabbitmq:
+    build:
+      context: ./src/rabbitmq
+      dockerfile: Dockerfile
+    container_name: rabbitmq
+    environment:
+    - RABBITMQ_LOG_LEVELS=error
+    healthcheck:
+      interval: 5s
+      retries: 10
+      start_period: 50s
+      test: rabbitmq-diagnostics check_port_connectivity
+      timeout: 3s
+    ports:
+    - 5672:5672
+    - 15672:15672
 
