@@ -1,9 +1,6 @@
 package middleware
 
 import (
-	"fmt"
-	"time"
-
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -14,10 +11,6 @@ type exchangeMiddleware struct {
 }
 
 func (m *exchangeMiddleware) StartConsuming(callbackFunc func(msg Message, ack func(), nack func())) error {
-	if err := m.channel.Qos(1, 0, false); err != nil {
-		return ErrMessageMiddlewareMessage
-	}
-
 	anonymousQueue, err := m.channel.QueueDeclare(
 		"",    // nombre vacío, genera uno aleatorio exclusivo
 		false, // durable
@@ -43,30 +36,7 @@ func (m *exchangeMiddleware) StartConsuming(callbackFunc func(msg Message, ack f
 		}
 	}
 
-	m.consumerTag = fmt.Sprintf("consumer_%s_%d", anonymousQueue.Name, time.Now().UnixNano())
-
-	messages, err := m.channel.Consume(
-		anonymousQueue.Name,
-		m.consumerTag,
-		false,
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		return ErrMessageMiddlewareMessage
-	}
-
-	for delivery := range messages {
-		msg := Message{Body: string(delivery.Body)}
-		deliveryTag := delivery.DeliveryTag
-		ack := func() { _ = m.channel.Ack(deliveryTag, false) }
-		nack := func() { _ = m.channel.Nack(deliveryTag, false, true) }
-		callbackFunc(msg, ack, nack)
-	}
-
-	return nil
+	return m.consume(anonymousQueue.Name, callbackFunc)
 }
 
 func (m *exchangeMiddleware) Send(msg Message) error {
