@@ -34,6 +34,7 @@ func NewGateway(config GatewayConfig) (*Gateway, error) {
 		listener: listener,
 		registry: clientregistry.NewClientRegistry(),
 	}
+	gateway.running.Store(true)
 	return gateway, nil
 }
 
