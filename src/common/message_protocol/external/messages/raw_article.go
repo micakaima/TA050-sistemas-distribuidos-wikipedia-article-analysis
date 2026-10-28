@@ -7,16 +7,6 @@ import (
 	"io"
 )
 
-type MsgType byte
-
-const (
-	Article MsgType = iota
-	ArticlesBatch
-	EOF
-	Ack
-	Unknown
-)
-
 // Serializa un artículo / fila cruda.
 // La estructura de la serialización es [Longitud bytes del artículo] + [Bytes del artículo].
 func SerializeArticle(rawArticle map[string]any) ([]byte, error) {
@@ -58,61 +48,4 @@ func ReadArticle(reader io.Reader) (map[string]any, error) {
 		return nil, err
 	}
 	return utils.DeserializeMap(bytes.NewReader(data))
-}
-
-// Envía un batch artículos / filas crudas.
-// La estructura del envío es [Código del mensaje (batch)] + [Largo del batch] + [Bytes de los artículos serializados].
-func WriteArticlesBatch(writer io.Writer, rawArticles []map[string]any) error {
-	result := []byte{byte(ArticlesBatch)}
-	result = append(result, utils.SerializeUint32(uint32(len(rawArticles)))...)
-
-	for _, article := range rawArticles {
-		articleBytes, err := SerializeArticle(article)
-		if err != nil {
-			return err
-		}
-		result = append(result, articleBytes...)
-	}
-	return safeio.SendAll(writer, result)
-}
-
-// Lee un batch de artículos / filas crudas.
-// Lee [Largo del batch] y luego, en base a éste, lee los bytes de todos los artículos que hacen al batch.
-func ReadArticlesBatch(reader io.Reader) ([]map[string]interface{}, error) {
-	numArticles, err := utils.ReadUint32(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	batch := []map[string]interface{}{}
-	for range numArticles {
-		record, err := ReadArticle(reader)
-		if err != nil {
-			return nil, err
-		}
-		batch = append(batch, record)
-	}
-	return batch, nil
-}
-
-// Lee el código del tipo de mensaje recibido.
-func ReadMsgType(reader io.Reader) (MsgType, error) {
-	msgTypeByte, err := utils.ReadByte(reader)
-	if err != nil {
-		return Unknown, err
-	}
-	msgType := MsgType(msgTypeByte)
-	return msgType, nil
-}
-
-// Envía un mensaje EOF.
-func WriteEOF(writer io.Writer) error {
-	result := []byte{byte(EOF)}
-	return safeio.SendAll(writer, result)
-}
-
-// Envía un mensaje Ack.
-func WriteAck(writer io.Writer) error {
-	result := []byte{byte(Ack)}
-	return safeio.SendAll(writer, result)
 }

@@ -63,9 +63,15 @@ func DeserializeUint32(data []byte) (uint32, error) {
 	return binary.BigEndian.Uint32(data), nil
 }
 
-func SerializeUint64(value int64) []byte {
+func SerializeInt64(value int64) []byte {
 	result := make([]byte, UINT64_SIZE)
 	binary.BigEndian.PutUint64(result, uint64(value))
+	return result
+}
+
+func SerializeUint64(value uint64) []byte {
+	result := make([]byte, UINT64_SIZE)
+	binary.BigEndian.PutUint64(result, value)
 	return result
 }
 
@@ -137,7 +143,7 @@ func serializeValue(val interface{}) ([]byte, error) {
 
 	case int64:
 		res := []byte{byte(TypeInt64)}
-		return append(res, SerializeUint64(v)...), nil
+		return append(res, SerializeInt64(v)...), nil
 
 	case float64:
 		res := []byte{byte(TypeFloat64)}
@@ -145,7 +151,7 @@ func serializeValue(val interface{}) ([]byte, error) {
 
 	case time.Time:
 		res := []byte{byte(TypeTime)}
-		return append(res, SerializeUint64(v.UnixMilli())...), nil
+		return append(res, SerializeInt64(v.UnixMilli())...), nil
 
 	case bool:
 		b := byte(0)

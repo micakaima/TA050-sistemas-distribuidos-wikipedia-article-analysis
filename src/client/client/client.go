@@ -1,7 +1,7 @@
 package client
 
 import (
-	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external"
+	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/messages"
 	"fmt"
 	"io"
 	"log/slog"
@@ -90,8 +90,8 @@ func (client *Client) handleSignals() {
 	client.conn.Close()
 }
 
-func (client *Client) expectMsgType(expectedMsgType external.MsgType) error {
-	msgType, err := external.ReadMsgType(client.conn)
+func (client *Client) expectMsgType(expectedMsgType external.MsgCode) error {
+	msgType, err := external.ReadMsgCode(client.conn)
 	if err != nil {
 		slog.Error("While reading message type", "err", err)
 		return err

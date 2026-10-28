@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external"
+	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/messages"
 )
 
 type GatewayConfig struct {
@@ -78,7 +78,7 @@ func (gateway *Gateway) handleSignals() {
 func (gateway *Gateway) handleClientRequest(client clientregistry.ClientState) {
 loop:
 	for {
-		msgType, err := external.ReadMsgType(client.Conn)
+		msgType, err := external.ReadMsgCode(client.Conn)
 		if err != nil {
 			slog.Error("While reading message type", "err", err)
 			return
