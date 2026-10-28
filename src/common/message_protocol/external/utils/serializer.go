@@ -104,6 +104,8 @@ func DeserializeBool(data []byte) (bool, error) {
 	return data[0] == 1, nil
 }
 
+// Serializa una fila / campo con subcampos crudo.
+// La estructura de serialización es [Cant. Subcampos] + [Nombre Subcampo1] + [Bytes Subcampo1 serializado] + ...
 func SerializeMap(m map[string]any) ([]byte, error) {
 	result := SerializeUint32(uint32(len(m)))
 	for k, v := range m {
@@ -117,6 +119,12 @@ func SerializeMap(m map[string]any) ([]byte, error) {
 	return result, nil
 }
 
+// Serializa un valor correspondiente a un campo / subcampo.
+// Cada campo incluye primero el tipo de campo que es (string, bool, list, etc.), luego:
+//   - A los strings se los serializa anteponiendo la longitud del string, y posteriormente la cadena.
+//   - A los valores numéricos se los serializa con endianess Big-Endian.
+//   - A los campos con subcampos se los serializa recursivamente.
+//   - A los campos tipo lista, se los serializa anteponiendo la longitud de la lista, y posteriormente los ítems serialziados.
 func serializeValue(val interface{}) ([]byte, error) {
 	if val == nil {
 		return []byte{byte(TypeNil)}, nil
@@ -172,6 +180,9 @@ func serializeValue(val interface{}) ([]byte, error) {
 	}
 }
 
+// Deserializa una fila / campo con subcampos crudo.
+// Primero lee la cantidad de columnas / subcampos y luego, en base a esta cantidad,
+// por cada subcampo lee su nombre, y deserializa su valor correspondiente.
 func DeserializeMap(reader io.Reader) (map[string]any, error) {
 	numColumns, err := ReadUint32(reader)
 	if err != nil {
@@ -193,6 +204,9 @@ func DeserializeMap(reader io.Reader) (map[string]any, error) {
 	return m, nil
 }
 
+// Deserializa un valor correspondiente a un campo / subcampo.
+// Primero lee el tipo de valor que es (string, bool, list, etc.), y luego deserializa el valor
+// según el tipo, análogamente a cómo se serializó.
 func deserializeValue(reader io.Reader) (any, error) {
 	valTypeByte, err := ReadByte(reader)
 	if err != nil {

@@ -17,47 +17,51 @@ const (
 	Unknown
 )
 
+// Serializa un artículo / fila cruda.
+// La estructura de la serialización es [Longitud bytes del artículo] + [Bytes del artículo].
 func SerializeArticle(rawArticle map[string]any) ([]byte, error) {
-	bytes, err := utils.SerializeMap(rawArticle)
+	articleBytes, err := utils.SerializeMap(rawArticle)
 	if err != nil {
 		return nil, err
 	}
-	length := len(bytes)
+	length := len(articleBytes)
 
 	result := utils.SerializeUint32(uint32(length))
-	result = append(result, bytes...)
-
+	result = append(result, articleBytes...)
 	return result, nil
 }
 
+// Envía un artículo / fila cruda.
+// La estructura del envío es [Código del mensaje (artículo)] + [Bytes del artículo serializado],
+// donde [Bytes del artículo serializado] = [Longitud bytes del artículo] + [Bytes del artículo].
 func WriteArticle(writer io.Writer, rawArticle map[string]any) error {
-	bytes, err := utils.SerializeMap(rawArticle)
+	serializedArticleBytes, err := SerializeArticle(rawArticle)
 	if err != nil {
 		return err
 	}
-	length := len(bytes)
 
 	result := []byte{byte(Article)}
-	result = append(result, utils.SerializeUint32(uint32(length))...)
-	result = append(result, bytes...)
-
+	result = append(result, serializedArticleBytes...)
 	return safeio.SendAll(writer, result)
 }
 
+// Lee un artículo / fila cruda.
+// Lee [Longitud bytes del artículo] y luego, en base a éste, [Bytes del artículo].
+// Finalmente deserializa los bytes del artículo.
 func ReadArticle(reader io.Reader) (map[string]any, error) {
 	length, err := utils.ReadUint32(reader)
 	if err != nil {
 		return nil, err
 	}
-
 	data, err := safeio.RecvAll(reader, int(length))
 	if err != nil {
 		return nil, err
 	}
-
 	return utils.DeserializeMap(bytes.NewReader(data))
 }
 
+// Envía un batch artículos / filas crudas.
+// La estructura del envío es [Código del mensaje (batch)] + [Largo del batch] + [Bytes de los artículos serializados].
 func WriteArticlesBatch(writer io.Writer, rawArticles []map[string]any) error {
 	result := []byte{byte(ArticlesBatch)}
 	result = append(result, utils.SerializeUint32(uint32(len(rawArticles)))...)
@@ -72,14 +76,16 @@ func WriteArticlesBatch(writer io.Writer, rawArticles []map[string]any) error {
 	return safeio.SendAll(writer, result)
 }
 
+// Lee un batch de artículos / filas crudas.
+// Lee [Largo del batch] y luego, en base a éste, lee los bytes de todos los artículos que hacen al batch.
 func ReadArticlesBatch(reader io.Reader) ([]map[string]interface{}, error) {
-	numRecords, err := utils.ReadUint32(reader)
+	numArticles, err := utils.ReadUint32(reader)
 	if err != nil {
 		return nil, err
 	}
 
 	batch := []map[string]interface{}{}
-	for range numRecords {
+	for range numArticles {
 		record, err := ReadArticle(reader)
 		if err != nil {
 			return nil, err
@@ -89,6 +95,7 @@ func ReadArticlesBatch(reader io.Reader) ([]map[string]interface{}, error) {
 	return batch, nil
 }
 
+// Lee el código del tipo de mensaje recibido.
 func ReadMsgType(reader io.Reader) (MsgType, error) {
 	msgTypeByte, err := utils.ReadByte(reader)
 	if err != nil {
@@ -98,11 +105,13 @@ func ReadMsgType(reader io.Reader) (MsgType, error) {
 	return msgType, nil
 }
 
+// Envía un mensaje EOF.
 func WriteEOF(writer io.Writer) error {
 	result := []byte{byte(EOF)}
 	return safeio.SendAll(writer, result)
 }
 
+// Envía un mensaje Ack.
 func WriteAck(writer io.Writer) error {
 	result := []byte{byte(Ack)}
 	return safeio.SendAll(writer, result)

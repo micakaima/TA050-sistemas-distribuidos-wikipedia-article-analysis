@@ -5,6 +5,8 @@ import (
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
 )
 
+// Convierte un artículo crudo a una estructura Record,
+// quedándose con sólo los campos que éste último incluye.
 func RawArticleToRecord(m map[string]any) (record.Record, error) {
 	var rec record.Record
 
