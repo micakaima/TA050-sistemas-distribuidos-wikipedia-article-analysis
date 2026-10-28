@@ -2,7 +2,6 @@ package gateway
 
 import (
 	clientregistry "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/gateway/client_registry"
-	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -10,7 +9,7 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	messageprotocol "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol"
+	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external"
 )
 
 type GatewayConfig struct {
@@ -77,23 +76,21 @@ func (gateway *Gateway) handleSignals() {
 }
 
 func (gateway *Gateway) handleClientRequest(client clientregistry.ClientState) {
-	receivedBatchs := 0
 loop:
 	for {
-		msgType, err := messageprotocol.ReadMsgType(client.Conn)
+		msgType, err := external.ReadMsgType(client.Conn)
 		if err != nil {
 			slog.Error("While reading message type", "err", err)
 			return
 		}
 
 		switch msgType {
-		case messageprotocol.Article:
-			receivedBatchs += 1
-			if err := gateway.handleRawArticle(client); err != nil {
-				slog.Error("While handling raw article", "err", err)
+		case external.ArticlesBatch:
+			if err := gateway.handleArticlesBatch(client); err != nil {
+				slog.Error("While handling Articles Batch", "err", err)
 				return
 			}
-		case messageprotocol.EOF:
+		case external.EOF:
 			if err := gateway.handleEOF(client); err != nil {
 				slog.Error("While handling EOF message", "err", err)
 				return
@@ -106,17 +103,16 @@ loop:
 	}
 }
 
-func (gateway *Gateway) handleRawArticle(client clientregistry.ClientState) error {
-	_, err := messageprotocol.ReadRawArticle(client.Conn) // records
+func (gateway *Gateway) handleArticlesBatch(client clientregistry.ClientState) error {
+	_, err := external.ReadArticlesBatch(client.Conn) // rawArticlesBatch
 	if err != nil {
-		if err == io.EOF {
-			slog.Info("Client disconnected")
-			return nil
-		}
-		slog.Error("While reading raw article/s", "err", err)
+		slog.Error("While reading Articles Batch", "err", err)
 		return err
 	}
-	if err := messageprotocol.WriteAck(client.Conn); err != nil {
+
+	// Aca se deberia enviar rawArticlesBatch a la siguiente etapa (columnFilter)
+
+	if err := external.WriteAck(client.Conn); err != nil {
 		slog.Error("While writing Ack message", "err", err)
 		return err
 	}
@@ -125,7 +121,7 @@ func (gateway *Gateway) handleRawArticle(client clientregistry.ClientState) erro
 
 func (gateway *Gateway) handleEOF(client clientregistry.ClientState) error {
 	slog.Info("Received END_OF_RECORDS message")
-	if err := messageprotocol.WriteAck(client.Conn); err != nil {
+	if err := external.WriteAck(client.Conn); err != nil {
 		slog.Error("While writing Ack message", "err", err)
 		return err
 	}

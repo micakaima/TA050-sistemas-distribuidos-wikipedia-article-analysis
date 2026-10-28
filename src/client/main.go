@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/client/client"
-	messageprotocol "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol"
+	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/utils"
 )
 
 func loadConfig() (client.ClientConfig, error) {
@@ -35,7 +35,7 @@ func loadConfig() (client.ClientConfig, error) {
 	if batchSizeStr == "" {
 		return client.ClientConfig{}, fmt.Errorf(client.ConfigSetupError, "BATCH_SIZE")
 	}
-	batchSize64, err := strconv.ParseUint(batchSizeStr, 10, messageprotocol.UINT32_SIZE)
+	batchSize64, err := strconv.ParseUint(batchSizeStr, 10, utils.UINT32_SIZE)
 	if err != nil {
 		return client.ClientConfig{}, fmt.Errorf(client.ConfigSetupError, "OUTPUT_DIR")
 	}

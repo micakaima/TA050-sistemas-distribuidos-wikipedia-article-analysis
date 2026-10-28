@@ -1,7 +1,7 @@
 package client
 
 import (
-	messageprotocol "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol"
+	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external"
 	"fmt"
 	"io"
 	"log/slog"
@@ -71,6 +71,13 @@ func (client *Client) Run() error {
 		return nil
 	}
 
+	if err := client.recvQueriesAnswers(); err != nil {
+		if client.running.Load() {
+			return err
+		}
+		return nil
+	}
+
 	return nil
 }
 
@@ -83,8 +90,8 @@ func (client *Client) handleSignals() {
 	client.conn.Close()
 }
 
-func (client *Client) expectMsgType(expectedMsgType messageprotocol.MsgType) error {
-	msgType, err := messageprotocol.ReadMsgType(client.conn)
+func (client *Client) expectMsgType(expectedMsgType external.MsgType) error {
+	msgType, err := external.ReadMsgType(client.conn)
 	if err != nil {
 		slog.Error("While reading message type", "err", err)
 		return err
@@ -108,18 +115,9 @@ func (client *Client) sendWikiRecords() error {
 			return err
 		}
 	}
-	if err := messageprotocol.WriteEOF(client.conn); err != nil {
+	if err := client.sendEOF(); err != nil {
+		slog.Error("While sending EOF", "err", err)
 		return err
-	}
-	if err := client.expectMsgType(messageprotocol.Ack); err != nil {
-		return err
-	}
-
-	if err := client.recvQueriesAnswers(); err != nil {
-		if client.running.Load() {
-			return err
-		}
-		return nil
 	}
 	return nil
 }
@@ -134,23 +132,45 @@ func (client *Client) sendFileRows(path string) error {
 	reader := parquet.NewReader(file)
 	defer reader.Close()
 
-	rowsBuffer := make([]parquet.Row, client.config.BatchSize)
+	batch := make([]map[string]any, 0, client.config.BatchSize)
 	for {
-		n, err := reader.ReadRows(rowsBuffer)
-		if n > 0 {
-			if err := messageprotocol.WriteRawArticles(client.conn, reader.Schema(), rowsBuffer); err != nil {
-				return err
-			}
-			if err := client.expectMsgType(messageprotocol.Ack); err != nil {
-				return err
-			}
-		}
-		if err != nil {
+		recordMap := make(map[string]any)
+		if err := reader.Read(&recordMap); err != nil {
 			if err == io.EOF {
-				break
+				return client.flushArticlesBatch(batch)
 			}
 			return err
 		}
+		batch = append(batch, recordMap)
+
+		if len(batch) >= int(client.config.BatchSize) {
+			if err := client.flushArticlesBatch(batch); err != nil {
+				return err
+			}
+			batch = make([]map[string]any, 0, client.config.BatchSize)
+		}
+
+	}
+}
+
+func (client *Client) flushArticlesBatch(batch []map[string]any) error {
+	if len(batch) > 0 {
+		if err := external.WriteArticlesBatch(client.conn, batch); err != nil {
+			return err
+		}
+		if err := client.expectMsgType(external.Ack); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (client *Client) sendEOF() error {
+	if err := external.WriteEOF(client.conn); err != nil {
+		return err
+	}
+	if err := client.expectMsgType(external.Ack); err != nil {
+		return err
 	}
 	return nil
 }
