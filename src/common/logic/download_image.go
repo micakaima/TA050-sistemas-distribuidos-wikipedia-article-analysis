@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"src/common/record"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
 )
 
 type WikiSummaryResponse struct {
@@ -31,42 +31,55 @@ func requestBytes(client *http.Client, targetUrl string) ([]byte, error) {
 	return io.ReadAll(resp.Body) 
 }
 
-func DownloadImage(records []record.Record) []record.Record {
+func DownloadImage(records []record.BioMetadata) []record.Q2Result {
 	client := &http.Client{Timeout: 10 * time.Second}
+	results := make([]record.Q2Result, 0, len(records))
 
-	for i := range records {
-		if records[i].Identifier == "" {
-			records[i].Image.Error = "missing identifier"
+	for _, r := range records {
+		result := record.Q2Result{
+			ClientID: r.ClientID,
+			ArticleID: r.ArticleID,
+			Name: r.Name,
+			URL: r.URL,
+		}
+		if r.ArticleID == "" {
+			result.Error = "missing identifier"
+			results = append(results, result)
 			continue
 		}
 
-		apiURL := fmt.Sprintf("https://en.wikipedia.org/api/rest_v1/page/summary/%s", url.PathEscape(records[i].Identifier))
+		apiURL := fmt.Sprintf("https://en.wikipedia.org/api/rest_v1/page/summary/%s", url.PathEscape(r.ArticleID))
 		bodyBytes, err := requestBytes(client, apiURL)
 		if err != nil {
-			records[i].Image.Error = "API request failed: " + err.Error()
+			result.Error = "API request failed: " + err.Error()
+			results = append(results, result)
 			continue
 		}
 
 		var summary WikiSummaryResponse
 
 		if err := json.Unmarshal(bodyBytes, &summary); err != nil {
-			records[i].Image.Error = "JSON unmarshal failed: " + err.Error()
+			result.Error = "JSON unmarshal failed: " + err.Error()
+			results = append(results, result)
 			continue
 		}
 
 		if summary.Thumbnail == nil || summary.Thumbnail.Source == "" {
-			records[i].Image.Error = "no thumbnail found"
+			result.Error = "no thumbnail found"
+			results = append(results, result)
 			continue
 		}
 
 		imageBytes, err := requestBytes(client, summary.Thumbnail.Source)
 		if err != nil {
-			records[i].Image.Error = "image download failed: " + err.Error()
+			result.Error = "image download failed: " + err.Error()
+			results = append(results, result)
 			continue
 		}
 
-		records[i].Image.Bytes = imageBytes	
-		records[i].Image.Error = ""
+		result.ImageBytes = imageBytes	
+		result.Error = ""
+		results = append(results, result)
 	}
-	return records
+	return results
 }

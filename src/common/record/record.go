@@ -9,6 +9,8 @@ import (
 )
 
 type Record struct {
+	ClientID 	string `parquet:"-"`
+	ArticleID string `parquet:"identifier"`
 	Abstract     string `parquet:"abstract"`
 	DateModified int64  `parquet:"date_modified"`
 	Image        struct {
@@ -22,8 +24,60 @@ type Record struct {
 	Name     string `parquet:"name"`
 	Sections string `parquet:"sections"`
 	URL      string `parquet:"url"`
-	Identifier string `parquet:"identifier"`
 }
+
+type YearCandidate struct {
+	ClientID 	string  
+	ArticleID string  
+	DateModified int64
+	ImageURL string 
+	InLanguage string
+	Name     string 
+	Sections string
+	URL      string
+}
+
+type EnglishCandidate struct {
+	ClientID 	string  
+	ArticleID string  
+	DateModified int64
+	InLanguage string
+	URL      string
+}
+
+type BioCandidate struct {
+	ClientID 	string  
+	ArticleID string  
+	ImageURL string 
+	Name     string 
+	Sections string
+	URL      string
+}
+
+type BioMetadata struct {
+	ClientID 	string  
+	ArticleID string  
+	ImageURL string 
+	Name     string 
+	URL      string
+}
+
+type Q1Result struct {
+	ClientID 	string  
+	ArticleID string  
+	DateModified int64
+	URL      string
+}
+
+type Q2Result struct {
+	ClientID 	string  
+	ArticleID string  
+	Name     string 
+	URL      string
+	ImageBytes []byte
+	Error string
+}
+
 
 func ParseParquetBatchToRecords(batch []byte) ([]Record, error) {
 	reader := parquet.NewGenericReader[Record](bytes.NewReader(batch))
@@ -47,7 +101,7 @@ func ParseParquetBatchToRecords(batch []byte) ([]Record, error) {
 	return records, nil
 }
 
-func ToBytes(records []Record) ([]byte, error) {
+func ToBytes[T any](records []T) ([]byte, error) {
 	var buf bytes.Buffer
 	encoder := gob.NewEncoder(&buf)
 	err := encoder.Encode(records)
@@ -57,10 +111,9 @@ func ToBytes(records []Record) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func FromBytes(data []byte) ([]Record, error) {
-	var records []Record
+func FromBytes[T any](data []byte) ([]T, error) {
+	var records []T
 	dec := gob.NewDecoder(bytes.NewReader(data))
-
 	err := dec.Decode(&records)
 	if err != nil {
 		return nil, err

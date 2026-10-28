@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"src/workers/bio_filter/bio_filter"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/workers/bio_filter/bio_filter"
 )
 
 func loadConfig() (bio_filter.Config, error) {

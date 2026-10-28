@@ -6,9 +6,9 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"src/common/logic"
-	"src/common/middleware"
-	"src/common/record"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
 )
 
 type Config struct {
@@ -72,7 +72,7 @@ func (w *ColumnFilterWorker) Run() {
 
 func (w *ColumnFilterWorker) handleMessage(msg middleware.Message, ack, nack func()) {
 	defer ack()
-	records, err := record.FromBytes([]byte(msg.Body))
+	records, err := record.FromBytes[record.Record]([]byte(msg.Body))
 	if err != nil { 
 		slog.Error("While parsing record", "err", err)
 		return

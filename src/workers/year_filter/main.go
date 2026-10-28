@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"src/workers/year_filter/year_filter"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/workers/year_filter/year_filter"
 )
 
 func loadConfig() (year_filter.Config, error) {

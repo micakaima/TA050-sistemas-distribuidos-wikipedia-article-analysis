@@ -6,9 +6,9 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"src/common/logic"
-	"src/common/middleware"
-	"src/common/record"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
 )
 
 type Config struct {
@@ -23,6 +23,7 @@ type Config struct {
 type YearFilterWorker struct {
 	inputQueue        middleware.Middleware
 	outputExchange    middleware.Middleware
+	routingKeys       []string
 	year 			  int
 }
 
@@ -42,6 +43,7 @@ func New(config Config) (*YearFilterWorker, error) {
 	return &YearFilterWorker{
 		inputQueue:  inputQueue,
 		outputExchange: outputExchange,
+		routingKeys: config.RoutingKeys,
 		year:        config.Year,
 	}, nil
 }
@@ -68,20 +70,31 @@ func (w *YearFilterWorker) Run() {
 
 func (w *YearFilterWorker) handleMessage(msg middleware.Message, ack, nack func()) {
 	defer ack()
-	records, err := record.FromBytes([]byte(msg.Body))
+	records, err := record.FromBytes[record.YearCandidate]([]byte(msg.Body))
 	if err != nil { 
 		slog.Error("While parsing record", "err", err)
 		return
 	}
 
-	result := logic.FilterByYear(records, w.year) 
+	enCandidates, bioCandidates := logic.FilterByYear(records, w.year) 
 
-	bytes, err := record.ToBytes(result)
+	bytesEn, err := record.ToBytes(enCandidates)
 	if err != nil {
 		slog.Error("While serializing record", "err", err) 
 		return
 	}
-	w.outputExchange.Send(middleware.Message{Body: string(bytes)})
+	w.outputExchange.Send(middleware.Message{Body: string(bytesEn)})
+	// cambiar a:
+	// w.outputExchange.SendToKey(middleware.Message{Body: string(bytesEn)}, w.routingKeys[0])
+
+	bytesBio, err := record.ToBytes(bioCandidates)
+	if err != nil {
+		slog.Error("While serializing record", "err", err) 
+		return
+	}
+	w.outputExchange.Send(middleware.Message{Body: string(bytesBio)})
+	// cambiar a:
+	// w.outputExchange.SendToKey(middleware.Message{Body: string(bytesBio)}, w.routingKeys[1])
 }
 
 func (w *YearFilterWorker) shutdown() {

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"src/workers/english_filter/english_filter"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/workers/english_filter/english_filter"
 )
 
 func loadConfig() (english_filter.Config, error) {

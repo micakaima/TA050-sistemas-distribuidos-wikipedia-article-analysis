@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	"src/workers/column_filter/column_filter"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/workers/column_filter/column_filter"
 )
 
 func loadConfig() (column_filter.Config, error) {

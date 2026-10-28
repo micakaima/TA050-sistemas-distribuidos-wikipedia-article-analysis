@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	"src/workers/image_downloader/image_downloader"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/workers/image_downloader/image_downloader"
 )
 
 func loadConfig() (image_downloader.Config, error) {
