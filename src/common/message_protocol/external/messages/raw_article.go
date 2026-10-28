@@ -7,10 +7,12 @@ import (
 	"io"
 )
 
+type RawArticle map[string]interface{}
+
 // Serializa un artículo / fila cruda.
 // La estructura de la serialización es [Longitud bytes del artículo] + [Bytes del artículo].
-func SerializeArticle(rawArticle map[string]any) ([]byte, error) {
-	articleBytes, err := utils.SerializeMap(rawArticle)
+func (article *RawArticle) ToBytes() ([]byte, error) {
+	articleBytes, err := utils.SerializeMap(*article)
 	if err != nil {
 		return nil, err
 	}
@@ -21,11 +23,21 @@ func SerializeArticle(rawArticle map[string]any) ([]byte, error) {
 	return result, nil
 }
 
+// Devuelve un artículo / fila cruda a partir de una serie de bytes.
+func RawArticleFromBytes(data []byte) (*RawArticle, error) {
+	reader := bytes.NewReader(data)
+	rawArticle, err := ReadArticle(reader)
+	if err != nil {
+		return nil, err
+	}
+	return &rawArticle, nil
+}
+
 // Envía un artículo / fila cruda.
 // La estructura del envío es [Código del mensaje (artículo)] + [Bytes del artículo serializado],
 // donde [Bytes del artículo serializado] = [Longitud bytes del artículo] + [Bytes del artículo].
-func WriteArticle(writer io.Writer, rawArticle map[string]any) error {
-	serializedArticleBytes, err := SerializeArticle(rawArticle)
+func WriteArticle(writer io.Writer, rawArticle RawArticle) error {
+	serializedArticleBytes, err := rawArticle.ToBytes()
 	if err != nil {
 		return err
 	}
@@ -38,7 +50,7 @@ func WriteArticle(writer io.Writer, rawArticle map[string]any) error {
 // Lee un artículo / fila cruda.
 // Lee [Longitud bytes del artículo] y luego, en base a éste, [Bytes del artículo].
 // Finalmente deserializa los bytes del artículo.
-func ReadArticle(reader io.Reader) (map[string]any, error) {
+func ReadArticle(reader io.Reader) (RawArticle, error) {
 	length, err := utils.ReadUint32(reader)
 	if err != nil {
 		return nil, err

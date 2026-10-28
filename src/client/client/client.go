@@ -132,28 +132,28 @@ func (client *Client) sendFileRows(path string) error {
 	reader := parquet.NewReader(file)
 	defer reader.Close()
 
-	batch := make([]map[string]any, 0, client.config.BatchSize)
+	batch := make([]external.RawArticle, 0, client.config.BatchSize)
 	for {
-		recordMap := make(map[string]any)
-		if err := reader.Read(&recordMap); err != nil {
+		rawArticle := make(external.RawArticle)
+		if err := reader.Read(&rawArticle); err != nil {
 			if err == io.EOF {
 				return client.flushArticlesBatch(batch)
 			}
 			return err
 		}
-		batch = append(batch, recordMap)
+		batch = append(batch, rawArticle)
 
 		if len(batch) >= int(client.config.BatchSize) {
 			if err := client.flushArticlesBatch(batch); err != nil {
 				return err
 			}
-			batch = make([]map[string]any, 0, client.config.BatchSize)
+			batch = make([]external.RawArticle, 0, client.config.BatchSize)
 		}
 
 	}
 }
 
-func (client *Client) flushArticlesBatch(batch []map[string]any) error {
+func (client *Client) flushArticlesBatch(batch []external.RawArticle) error {
 	if len(batch) > 0 {
 		if err := external.WriteArticlesBatch(client.conn, batch); err != nil {
 			return err
