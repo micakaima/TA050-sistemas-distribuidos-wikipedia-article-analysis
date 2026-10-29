@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/client/client"
-	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/utils"
+	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
 )
 
 func loadConfig() (client.ClientConfig, error) {

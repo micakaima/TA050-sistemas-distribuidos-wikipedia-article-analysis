@@ -10,28 +10,53 @@ import (
 	"syscall"
 
 	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/messages"
+	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
 )
 
 type GatewayConfig struct {
-	ServerHost string
-	ServerPort string
+	ServerHost      string
+	ServerPort      string
+	InputQueueName  string
+	OutputQueueName string
+	MomHost         string
+	MomPort         int
 }
 
 type Gateway struct {
-	registry clientregistry.ClientRegistry
-	listener net.Listener
-	running  atomic.Bool
+	registry    clientregistry.ClientRegistry
+	inputQueue  middleware.Middleware
+	outputQueue middleware.Middleware
+	listener    net.Listener
+	running     atomic.Bool
 }
 
 func NewGateway(config GatewayConfig) (*Gateway, error) {
-	listener, err := net.Listen("tcp", config.ServerHost+":"+config.ServerPort)
+	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
+
+	inputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueueName, connSettings)
 	if err != nil {
 		return nil, err
 	}
 
+	outputQueue, err := middleware.CreateQueueMiddleware(config.InputQueueName, connSettings)
+	if err != nil {
+		inputQueue.Close()
+		return nil, err
+	}
+
+	listener, err := net.Listen("tcp", config.ServerHost+":"+config.ServerPort)
+	if err != nil {
+		inputQueue.Close()
+		outputQueue.Close()
+		return nil, err
+	}
+
 	gateway := &Gateway{
-		listener: listener,
-		registry: clientregistry.NewClientRegistry(),
+		registry:    clientregistry.NewClientRegistry(),
+		inputQueue:  inputQueue,
+		outputQueue: outputQueue,
+		listener:    listener,
 	}
 	gateway.running.Store(true)
 	return gateway, nil
@@ -40,6 +65,10 @@ func NewGateway(config GatewayConfig) (*Gateway, error) {
 func (gateway *Gateway) Run() error {
 	defer gateway.listener.Close()
 	go gateway.handleSignals()
+
+	go gateway.outputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
+		gateway.handleClientResponse(msg, ack, nack)
+	})
 
 	for {
 		conn, err := gateway.listener.Accept()
@@ -57,6 +86,7 @@ func (gateway *Gateway) Run() error {
 		go gateway.handleClientRequest(client)
 	}
 
+	gateway.outputQueue.StopConsuming()
 	gateway.registry.WithLock(func(clients map[uint64]clientregistry.ClientState) {
 		for _, clientState := range clients {
 			clientState.Conn.Close()
@@ -104,16 +134,24 @@ loop:
 }
 
 func (gateway *Gateway) handleArticlesBatch(client clientregistry.ClientState) error {
-	_, err := external.ReadArticlesBatch(client.Conn) // rawArticlesBatch
+	rawArticlesBatch, err := external.ReadArticlesBatch(client.Conn) // rawArticlesBatch
 	if err != nil {
-		slog.Error("While reading Articles Batch", "err", err)
+		slog.Debug("While reading Articles Batch", "err", err)
 		return err
 	}
 
-	// Aca se deberia enviar rawArticlesBatch a la siguiente etapa (columnFilter)
+	batchMessage, err := middleware.NewMessage(&rawArticlesBatch)
+	if err != nil {
+		slog.Debug("While creating Raw Articles Batch message", "err", err)
+		return err
+	}
+	if err := gateway.inputQueue.Send(*batchMessage); err != nil {
+		slog.Debug("While sending Raw Articles Batch message", "err", err)
+		return err
+	}
 
 	if err := external.WriteAck(client.Conn); err != nil {
-		slog.Error("While writing Ack message", "err", err)
+		slog.Debug("While writing Ack message", "err", err)
 		return err
 	}
 	return nil
@@ -121,11 +159,25 @@ func (gateway *Gateway) handleArticlesBatch(client clientregistry.ClientState) e
 
 func (gateway *Gateway) handleEOF(client clientregistry.ClientState) error {
 	slog.Info("Received END_OF_RECORDS message")
+
+	eof := messages.EofMsg{}
+	eofMessage, err := middleware.NewMessage(&eof)
+	if err != nil {
+		slog.Debug("While creating EOF message", "err", err)
+		return err
+	}
+	if err := gateway.inputQueue.Send(*eofMessage); err != nil {
+		slog.Debug("While sending EOF message", "err", err)
+		return err
+	}
+
 	if err := external.WriteAck(client.Conn); err != nil {
-		slog.Error("While writing Ack message", "err", err)
+		slog.Debug("While writing Ack message", "err", err)
 		return err
 	}
 	return nil
 }
 
-// func (gateway *Gateway) handleClientResponse()
+func (gateway *Gateway) handleClientResponse(msg middleware.Message, ack func(), nack func()) {
+
+}

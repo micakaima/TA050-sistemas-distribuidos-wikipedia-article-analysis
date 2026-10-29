@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"time"
 )
 
 const UINT32_SIZE = 4
 const UINT64_SIZE = 8
+const INT64_SIZE = 8
 const FLOAT64_SIZE = 8
 const BOOL_SIZE = 1
 
@@ -20,9 +20,9 @@ const (
 	TypeNil ValueType = iota
 	TypeString
 	TypeInt64
+	TypeUint64
 	TypeFloat64
 	TypeBool
-	TypeTime
 	TypeMap
 	TypeList
 )
@@ -64,9 +64,17 @@ func DeserializeUint32(data []byte) (uint32, error) {
 }
 
 func SerializeInt64(value int64) []byte {
-	result := make([]byte, UINT64_SIZE)
+	result := make([]byte, INT64_SIZE)
 	binary.BigEndian.PutUint64(result, uint64(value))
 	return result
+}
+
+func DeserializeInt64(data []byte) (int64, error) {
+	if len(data) < INT64_SIZE {
+		return 0, fmt.Errorf(errors.ValueTooShortError)
+	}
+	valUint64 := binary.BigEndian.Uint64(data)
+	return int64(valUint64), nil
 }
 
 func SerializeUint64(value uint64) []byte {
@@ -145,13 +153,13 @@ func serializeValue(val interface{}) ([]byte, error) {
 		res := []byte{byte(TypeInt64)}
 		return append(res, SerializeInt64(v)...), nil
 
+	case uint64:
+		res := []byte{byte(TypeUint64)}
+		return append(res, SerializeUint64(v)...), nil
+
 	case float64:
 		res := []byte{byte(TypeFloat64)}
 		return append(res, SerializeFloat64(v)...), nil
-
-	case time.Time:
-		res := []byte{byte(TypeTime)}
-		return append(res, SerializeInt64(v.UnixMilli())...), nil
 
 	case bool:
 		b := byte(0)
@@ -182,6 +190,7 @@ func serializeValue(val interface{}) ([]byte, error) {
 		return res, nil
 
 	default:
+		fmt.Println("UNKNOWN TYPE CODE: ", v)
 		return nil, fmt.Errorf(errors.UnknownTypeCode)
 	}
 }
@@ -228,6 +237,9 @@ func deserializeValue(reader io.Reader) (any, error) {
 		return ReadString(reader)
 
 	case TypeInt64:
+		return ReadInt64(reader)
+
+	case TypeUint64:
 		return ReadUint64(reader)
 
 	case TypeFloat64:

@@ -2,7 +2,7 @@ package messageprotocol
 
 import (
 	safeio "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/safe_socket"
-	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/utils"
+	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
 	"bytes"
 	"io"
 )
