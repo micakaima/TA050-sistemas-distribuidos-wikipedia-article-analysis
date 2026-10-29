@@ -26,6 +26,14 @@ func ReadUint32(reader io.Reader) (uint32, error) {
 	return DeserializeUint32(numBytes)
 }
 
+func ReadInt64(reader io.Reader) (int64, error) {
+	numBytes, err := safeio.RecvAll(reader, INT64_SIZE)
+	if err != nil {
+		return 0, err
+	}
+	return DeserializeInt64(numBytes)
+}
+
 func ReadUint64(reader io.Reader) (uint64, error) {
 	numBytes, err := safeio.RecvAll(reader, UINT64_SIZE)
 	if err != nil {

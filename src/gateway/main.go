@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/gateway/gateway"
 )
@@ -19,9 +20,33 @@ func loadConfig() (gateway.GatewayConfig, error) {
 		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "SERVER_PORT")
 	}
 
+	inputQueueName := os.Getenv("INPUT_QUEUE")
+	if inputQueueName == "" {
+		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "INPUT_QUEUE")
+	}
+
+	outputQueueName := os.Getenv("OUTPUT_QUEUE")
+	if outputQueueName == "" {
+		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "OUTPUT_QUEUE")
+	}
+
+	momHost := os.Getenv("MOM_HOST")
+	if momHost == "" {
+		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "MOM_HOST")
+	}
+
+	momPort, err := strconv.Atoi(os.Getenv("MOM_PORT"))
+	if err != nil {
+		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "MOM_PORT")
+	}
+
 	return gateway.GatewayConfig{
-		ServerHost: serverHost,
-		ServerPort: serverPort,
+		ServerHost:      serverHost,
+		ServerPort:      serverPort,
+		InputQueueName:  inputQueueName,
+		OutputQueueName: outputQueueName,
+		MomHost:         momHost,
+		MomPort:         momPort,
 	}, nil
 }
 

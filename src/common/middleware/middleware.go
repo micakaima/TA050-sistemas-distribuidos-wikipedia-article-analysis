@@ -1,6 +1,9 @@
 package middleware
 
-import "errors"
+import (
+	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol"
+	"errors"
+)
 
 var (
 	ErrMessageMiddlewareMessage      = errors.New("message middleware: message error")
@@ -9,7 +12,16 @@ var (
 )
 
 type Message struct {
-	Body string
+	ClientID uint64
+	Body     string
+}
+
+func NewMessage(msg messages.SerializableMessage) (*Message, error) {
+	msgBytes, err := msg.ToBytes()
+	if err != nil {
+		return nil, err
+	}
+	return &Message{Body: string(msgBytes)}, nil
 }
 
 type Event struct {
