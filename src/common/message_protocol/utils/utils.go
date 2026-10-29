@@ -1,9 +1,10 @@
 package messageprotocol
 
 import (
-	safeio "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/safe_socket"
 	"fmt"
 	"io"
+
+	safeio "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/safe_socket"
 )
 
 func ReadString(reader io.Reader) (string, error) {

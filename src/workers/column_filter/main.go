@@ -14,7 +14,7 @@ func loadConfig() (column_filter.Config, error) {
 	if err != nil {
 		return column_filter.Config{}, errors.New("MOM_PORT environment variable is required and must be a number")
 	}
-	
+
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
 		return column_filter.Config{}, errors.New("MOM_HOST environment variable is required")
@@ -36,9 +36,9 @@ func loadConfig() (column_filter.Config, error) {
 	}
 
 	return column_filter.Config{
-		MomHost:     momHost,
-		MomPort:     momPort,
-		InputQueue:  inputQueue,
+		MomHost:      momHost,
+		MomPort:      momPort,
+		InputQueue:   inputQueue,
 		OutputQ1ToQ2: outQ1ToQ2,
 		OutputQ3ToQ5: outQ3ToQ5,
 	}, nil
@@ -59,4 +59,4 @@ func run() int {
 	return 0
 }
 
-func main() {os.Exit(run())}
+func main() { os.Exit(run()) }

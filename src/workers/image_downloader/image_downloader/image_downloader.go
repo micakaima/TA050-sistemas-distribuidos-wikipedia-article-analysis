@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
@@ -19,8 +20,8 @@ type Config struct {
 }
 
 type ImageDownloaderWorker struct {
-	inputQueue        middleware.Middleware
-	outputQueue       middleware.Middleware
+	inputQueue  middleware.Middleware
+	outputQueue middleware.Middleware
 }
 
 func New(config Config) (*ImageDownloaderWorker, error) {
@@ -64,16 +65,16 @@ func (w *ImageDownloaderWorker) Run() {
 func (w *ImageDownloaderWorker) handleMessage(msg middleware.Message, ack, nack func()) {
 	defer ack()
 	records, err := record.FromBytes[record.BioMetadata]([]byte(msg.Body))
-	if err != nil { 
+	if err != nil {
 		slog.Error("While parsing record", "err", err)
 		return
 	}
 
-	result := logic.DownloadImage(records) 
+	result := logic.DownloadImage(records)
 
 	bytes, err := record.ToBytes(result)
 	if err != nil {
-		slog.Error("While serializing record", "err", err) 
+		slog.Error("While serializing record", "err", err)
 		return
 	}
 	w.outputQueue.Send(middleware.Message{ClientID: msg.ClientID, Body: string(bytes)})

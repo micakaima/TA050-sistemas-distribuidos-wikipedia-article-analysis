@@ -6,25 +6,26 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
 )
 
 type Config struct {
-	MomHost     string
-	MomPort     int
-	InputQueue  string
+	MomHost        string
+	MomPort        int
+	InputQueue     string
 	OutputExchange string
-	RoutingKeys []string
-	Year        int
+	RoutingKeys    []string
+	Year           int
 }
 
 type YearFilterWorker struct {
-	inputQueue        middleware.Middleware
-	outputExchange    middleware.ExchangeMiddleware
-	routingKeys       []string
-	year 			  int
+	inputQueue     middleware.Middleware
+	outputExchange middleware.ExchangeMiddleware
+	routingKeys    []string
+	year           int
 }
 
 func New(config Config) (*YearFilterWorker, error) {
@@ -41,10 +42,10 @@ func New(config Config) (*YearFilterWorker, error) {
 		return nil, err
 	}
 	return &YearFilterWorker{
-		inputQueue:  inputQueue,
+		inputQueue:     inputQueue,
 		outputExchange: outputExchange,
-		routingKeys: config.RoutingKeys,
-		year:        config.Year,
+		routingKeys:    config.RoutingKeys,
+		year:           config.Year,
 	}, nil
 }
 
@@ -71,23 +72,23 @@ func (w *YearFilterWorker) Run() {
 func (w *YearFilterWorker) handleMessage(msg middleware.Message, ack, nack func()) {
 	defer ack()
 	records, err := record.FromBytes[record.YearCandidate]([]byte(msg.Body))
-	if err != nil { 
+	if err != nil {
 		slog.Error("While parsing record", "err", err)
 		return
 	}
 
-	enCandidates, bioCandidates := logic.FilterByYear(records, w.year) 
+	enCandidates, bioCandidates := logic.FilterByYear(records, w.year)
 
 	bytesEn, err := record.ToBytes(enCandidates)
 	if err != nil {
-		slog.Error("While serializing record", "err", err) 
+		slog.Error("While serializing record", "err", err)
 		return
 	}
 	w.outputExchange.SendToKey(middleware.Message{ClientID: msg.ClientID, Body: string(bytesEn)}, w.routingKeys[0])
 
 	bytesBio, err := record.ToBytes(bioCandidates)
 	if err != nil {
-		slog.Error("While serializing record", "err", err) 
+		slog.Error("While serializing record", "err", err)
 		return
 	}
 	w.outputExchange.SendToKey(middleware.Message{ClientID: msg.ClientID, Body: string(bytesBio)}, w.routingKeys[1])

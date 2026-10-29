@@ -6,22 +6,23 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
 )
 
 type Config struct {
-	MomHost     string
-	MomPort     int
-	RoutingKeys []string
-	InputExchange  string
-	OutputQueue string
+	MomHost       string
+	MomPort       int
+	RoutingKeys   []string
+	InputExchange string
+	OutputQueue   string
 }
 
 type BioFilterWorker struct {
-	inputExchange     middleware.Middleware
-	outputQueue       middleware.Middleware
+	inputExchange middleware.Middleware
+	outputQueue   middleware.Middleware
 }
 
 func New(config Config) (*BioFilterWorker, error) {
@@ -37,8 +38,8 @@ func New(config Config) (*BioFilterWorker, error) {
 		return nil, err
 	}
 	return &BioFilterWorker{
-		inputExchange:  inputExchange,
-		outputQueue: outputQueue,
+		inputExchange: inputExchange,
+		outputQueue:   outputQueue,
 	}, nil
 }
 
@@ -65,16 +66,16 @@ func (w *BioFilterWorker) Run() {
 func (w *BioFilterWorker) handleMessage(msg middleware.Message, ack, nack func()) {
 	defer ack()
 	records, err := record.FromBytes[record.BioCandidate]([]byte(msg.Body))
-	if err != nil { 
+	if err != nil {
 		slog.Error("While parsing record", "err", err)
 		return
 	}
 
-	result := logic.FilterByBio(records) 
+	result := logic.FilterByBio(records)
 
 	bytes, err := record.ToBytes(result)
 	if err != nil {
-		slog.Error("While serializing record", "err", err) 
+		slog.Error("While serializing record", "err", err)
 		return
 	}
 	w.outputQueue.Send(middleware.Message{ClientID: msg.ClientID, Body: string(bytes)})

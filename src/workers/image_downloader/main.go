@@ -14,7 +14,7 @@ func loadConfig() (image_downloader.Config, error) {
 	if err != nil {
 		return image_downloader.Config{}, errors.New("MOM_PORT environment variable is required and must be a number")
 	}
-	
+
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
 		return image_downloader.Config{}, errors.New("MOM_HOST environment variable is required")
@@ -53,4 +53,4 @@ func run() int {
 	return 0
 }
 
-func main() {os.Exit(run())}
+func main() { os.Exit(run()) }

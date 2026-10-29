@@ -1,8 +1,9 @@
 package messageprotocol
 
 import (
-	safeio "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/safe_socket"
 	"io"
+
+	safeio "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/safe_socket"
 )
 
 // Envía un mensaje Ack.

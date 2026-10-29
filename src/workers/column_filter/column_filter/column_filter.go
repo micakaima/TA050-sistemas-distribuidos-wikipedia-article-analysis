@@ -6,23 +6,24 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
 )
 
 type Config struct {
-	MomHost     string
-	MomPort     int
-	InputQueue  string
+	MomHost      string
+	MomPort      int
+	InputQueue   string
 	OutputQ1ToQ2 string
 	OutputQ3ToQ5 string
 }
 
 type ColumnFilterWorker struct {
-	inputQueue        middleware.Middleware
-	outputQ1ToQ2      middleware.Middleware
-	outputQ3ToQ5      middleware.Middleware
+	inputQueue   middleware.Middleware
+	outputQ1ToQ2 middleware.Middleware
+	outputQ3ToQ5 middleware.Middleware
 }
 
 func New(config Config) (*ColumnFilterWorker, error) {
@@ -44,7 +45,7 @@ func New(config Config) (*ColumnFilterWorker, error) {
 		return nil, err
 	}
 	return &ColumnFilterWorker{
-		inputQueue:  inputQueue,
+		inputQueue:   inputQueue,
 		outputQ1ToQ2: outputQ1ToQ2,
 		outputQ3ToQ5: outputQ3ToQ5,
 	}, nil
@@ -73,7 +74,7 @@ func (w *ColumnFilterWorker) Run() {
 func (w *ColumnFilterWorker) handleMessage(msg middleware.Message, ack, nack func()) {
 	defer ack()
 	records, err := record.FromBytes[record.Record]([]byte(msg.Body))
-	if err != nil { 
+	if err != nil {
 		slog.Error("While parsing record", "err", err)
 		return
 	}
@@ -82,14 +83,14 @@ func (w *ColumnFilterWorker) handleMessage(msg middleware.Message, ack, nack fun
 
 	bytesq1q2, err := record.ToBytes(q1q2)
 	if err != nil {
-		slog.Error("While serializing record", "err", err) 
+		slog.Error("While serializing record", "err", err)
 		return
 	}
 	w.outputQ1ToQ2.Send(middleware.Message{ClientID: msg.ClientID, Body: string(bytesq1q2)})
 
 	bytesq3q5, err := record.ToBytes(q3q5)
 	if err != nil {
-		slog.Error("While serializing record", "err", err) 
+		slog.Error("While serializing record", "err", err)
 		return
 	}
 	w.outputQ3ToQ5.Send(middleware.Message{ClientID: msg.ClientID, Body: string(bytesq3q5)})

@@ -28,7 +28,7 @@ func requestBytes(client *http.Client, targetUrl string) ([]byte, error) {
 		return nil, fmt.Errorf("HTTP request failed with status: %s", resp.Status)
 	}
 
-	return io.ReadAll(resp.Body) 
+	return io.ReadAll(resp.Body)
 }
 
 func DownloadImage(records []record.BioMetadata) []record.Q2Result {
@@ -38,8 +38,8 @@ func DownloadImage(records []record.BioMetadata) []record.Q2Result {
 	for _, r := range records {
 		result := record.Q2Result{
 			ArticleID: r.ArticleID,
-			Name: r.Name,
-			URL: r.URL,
+			Name:      r.Name,
+			URL:       r.URL,
 		}
 		if r.ArticleID == "" {
 			result.Error = "missing identifier"
@@ -76,7 +76,7 @@ func DownloadImage(records []record.BioMetadata) []record.Q2Result {
 			continue
 		}
 
-		result.ImageBytes = imageBytes	
+		result.ImageBytes = imageBytes
 		result.Error = ""
 		results = append(results, result)
 	}

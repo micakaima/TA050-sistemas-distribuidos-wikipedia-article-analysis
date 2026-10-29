@@ -9,13 +9,13 @@ import (
 )
 
 type Record struct {
-	ArticleID string `parquet:"identifier"`
+	ArticleID    string `parquet:"identifier"`
 	Abstract     string `parquet:"abstract"`
 	DateModified int64  `parquet:"date_modified"`
 	Image        struct {
 		ContentURL string `parquet:"content_url"`
-		Bytes 	[]byte `parquet:"-"`
-		Error 	string `parquet:"-"`
+		Bytes      []byte `parquet:"-"`
+		Error      string `parquet:"-"`
 	} `parquet:"image"`
 	InLanguage struct {
 		Identifier string `parquet:"identifier"`
@@ -26,51 +26,50 @@ type Record struct {
 }
 
 type YearCandidate struct {
-	ArticleID string  
+	ArticleID    string
 	DateModified int64
-	ImageURL string 
-	InLanguage string
-	Name     string 
-	Sections string
-	URL      string
+	ImageURL     string
+	InLanguage   string
+	Name         string
+	Sections     string
+	URL          string
 }
 
 type EnglishCandidate struct {
-	ArticleID string  
+	ArticleID    string
 	DateModified int64
-	InLanguage string
-	URL      string
+	InLanguage   string
+	URL          string
 }
 
 type BioCandidate struct {
-	ArticleID string  
-	ImageURL string 
-	Name     string 
-	Sections string
-	URL      string
+	ArticleID string
+	ImageURL  string
+	Name      string
+	Sections  string
+	URL       string
 }
 
 type BioMetadata struct {
-	ArticleID string  
-	ImageURL string 
-	Name     string 
-	URL      string
+	ArticleID string
+	ImageURL  string
+	Name      string
+	URL       string
 }
 
 type Q1Result struct {
-	ArticleID string  
+	ArticleID    string
 	DateModified int64
-	URL      string
+	URL          string
 }
 
 type Q2Result struct {
-	ArticleID string  
-	Name     string 
-	URL      string
+	ArticleID  string
+	Name       string
+	URL        string
 	ImageBytes []byte
-	Error string
+	Error      string
 }
-
 
 func ParseParquetBatchToRecords(batch []byte) ([]Record, error) {
 	reader := parquet.NewGenericReader[Record](bytes.NewReader(batch))

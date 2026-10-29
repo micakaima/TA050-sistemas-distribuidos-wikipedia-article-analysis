@@ -15,7 +15,7 @@ func loadConfig() (bio_filter.Config, error) {
 	if err != nil {
 		return bio_filter.Config{}, errors.New("MOM_PORT environment variable is required and must be a number")
 	}
-	
+
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
 		return bio_filter.Config{}, errors.New("MOM_HOST environment variable is required")
@@ -37,11 +37,11 @@ func loadConfig() (bio_filter.Config, error) {
 	}
 
 	return bio_filter.Config{
-		MomHost:     momHost,
-		MomPort:     momPort,
-		InputExchange:  inputExchange,
-		OutputQueue: outputQueue,
-		RoutingKeys: routingKeys,
+		MomHost:       momHost,
+		MomPort:       momPort,
+		InputExchange: inputExchange,
+		OutputQueue:   outputQueue,
+		RoutingKeys:   routingKeys,
 	}, nil
 }
 
@@ -60,4 +60,4 @@ func run() int {
 	return 0
 }
 
-func main() {os.Exit(run())}
+func main() { os.Exit(run()) }

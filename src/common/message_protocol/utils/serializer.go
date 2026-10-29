@@ -1,11 +1,12 @@
 package messageprotocol
 
 import (
-	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/errors"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
+
+	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/errors"
 )
 
 const UINT32_SIZE = 4

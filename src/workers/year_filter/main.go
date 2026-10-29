@@ -15,7 +15,7 @@ func loadConfig() (year_filter.Config, error) {
 	if err != nil {
 		return year_filter.Config{}, errors.New("MOM_PORT environment variable is required and must be a number")
 	}
-	
+
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
 		return year_filter.Config{}, errors.New("MOM_HOST environment variable is required")
@@ -42,12 +42,12 @@ func loadConfig() (year_filter.Config, error) {
 	}
 
 	return year_filter.Config{
-		MomHost:     momHost,
-		MomPort:     momPort,
-		InputQueue:  inputQueue,
+		MomHost:        momHost,
+		MomPort:        momPort,
+		InputQueue:     inputQueue,
 		OutputExchange: outputExchange,
-		RoutingKeys: routingKeys,
-		Year:          year,
+		RoutingKeys:    routingKeys,
+		Year:           year,
 	}, nil
 }
 
@@ -66,4 +66,4 @@ func run() int {
 	return 0
 }
 
-func main() {os.Exit(run())}
+func main() { os.Exit(run()) }

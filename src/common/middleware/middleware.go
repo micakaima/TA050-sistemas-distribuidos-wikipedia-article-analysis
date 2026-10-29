@@ -1,8 +1,9 @@
 package middleware
 
 import (
-	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol"
 	"errors"
+
+	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol"
 )
 
 var (

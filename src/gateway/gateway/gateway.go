@@ -1,13 +1,14 @@
 package gateway
 
 import (
-	clientregistry "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/gateway/client_registry"
 	"log/slog"
 	"net"
 	"os"
 	"os/signal"
 	"sync/atomic"
 	"syscall"
+
+	clientregistry "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/gateway/client_registry"
 
 	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/messages"
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
