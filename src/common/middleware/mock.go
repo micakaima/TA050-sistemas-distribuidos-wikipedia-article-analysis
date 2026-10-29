@@ -49,6 +49,10 @@ func (m *MockMiddleware) Close() error {
 }
 
 func (m *MockMiddleware) SimulateIncomingMessage(body string) (acked bool, nacked bool) {
+	return m.SimulateIncomingMessageWithClientID(0, body)
+}
+
+func (m *MockMiddleware) SimulateIncomingMessageWithClientID(clientID uint64, body string) (acked bool, nacked bool) {
 	m.mu.Lock()
 	cb := m.Consumer
 	m.mu.Unlock()
@@ -59,6 +63,6 @@ func (m *MockMiddleware) SimulateIncomingMessage(body string) (acked bool, nacke
 
 	ackCalled := false
 	nackCalled := false
-	cb(Message{Body: body}, func() { ackCalled = true }, func() { nackCalled = true })
+	cb(Message{ClientID: clientID, Body: body}, func() { ackCalled = true }, func() { nackCalled = true })
 	return ackCalled, nackCalled
 }

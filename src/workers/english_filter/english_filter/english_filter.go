@@ -77,7 +77,7 @@ func (w *EnglishFilterWorker) handleMessage(msg middleware.Message, ack, nack fu
 		slog.Error("While serializing record", "err", err) 
 		return
 	}
-	w.outputQueue.Send(middleware.Message{Body: string(bytes)})
+	w.outputQueue.Send(middleware.Message{ClientID: msg.ClientID, Body: string(bytes)})
 }
 
 func (w *EnglishFilterWorker) shutdown() {

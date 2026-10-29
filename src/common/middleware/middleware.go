@@ -11,17 +11,19 @@ var (
 	ErrMessageMiddlewareClose        = errors.New("message middleware: close error")
 )
 
+const ClientIDHeader = "client_id"
+
 type Message struct {
 	ClientID uint64
 	Body     string
 }
 
-func NewMessage(msg messages.SerializableMessage) (*Message, error) {
+func NewMessage(clientID uint64, msg messages.SerializableMessage) (*Message, error) {
 	msgBytes, err := msg.ToBytes()
 	if err != nil {
 		return nil, err
 	}
-	return &Message{Body: string(msgBytes)}, nil
+	return &Message{ClientID: clientID, Body: string(msgBytes)}, nil
 }
 
 type Event struct {

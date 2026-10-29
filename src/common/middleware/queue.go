@@ -20,6 +20,9 @@ func (m *queueMiddleware) Send(msg Message) error {
 		false,       // mandatory
 		false,       // immediate
 		amqp.Publishing{
+			Headers: amqp.Table{
+				ClientIDHeader: int64(msg.ClientID),
+			},
 			ContentType: "text/plain",
 			Body:        []byte(msg.Body),
 		})

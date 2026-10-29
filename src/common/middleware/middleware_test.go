@@ -72,3 +72,25 @@ func TestMockMiddlewareSendToKey(t *testing.T) {
 		t.Errorf("expected SentMessages to contain 'routed_message'")
 	}
 }
+
+func TestMockMiddlewareClientIDPropagation(t *testing.T) {
+	mock := NewMockMiddleware()
+
+	var received Message
+	_ = mock.StartConsuming(func(msg Message, ack func(), nack func()) {
+		received = msg
+		ack()
+	})
+
+	expectedClientID := uint64(9876543210)
+	acked, _ := mock.SimulateIncomingMessageWithClientID(expectedClientID, "client payload")
+	if !acked {
+		t.Errorf("expected message to be acked")
+	}
+	if received.ClientID != expectedClientID {
+		t.Errorf("expected ClientID %d, got %d", expectedClientID, received.ClientID)
+	}
+	if received.Body != "client payload" {
+		t.Errorf("expected body 'client payload', got '%s'", received.Body)
+	}
+}

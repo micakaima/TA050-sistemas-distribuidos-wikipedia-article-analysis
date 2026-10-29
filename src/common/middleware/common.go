@@ -37,7 +37,16 @@ func (m *commonMiddleware) consume(queueName string, callbackFunc func(msg Messa
 	}
 
 	for delivery := range messages {
-		msg := Message{Body: string(delivery.Body)}
+		var clientID uint64
+		if delivery.Headers != nil {
+			if val, ok := delivery.Headers[ClientIDHeader].(int64); ok {
+				clientID = uint64(val)
+			}
+		}
+		msg := Message{
+			ClientID: clientID,
+			Body:     string(delivery.Body),
+		}
 		deliveryTag := delivery.DeliveryTag
 		ack := func() { _ = m.channel.Ack(deliveryTag, false) }
 		nack := func() { _ = m.channel.Nack(deliveryTag, false, true) }

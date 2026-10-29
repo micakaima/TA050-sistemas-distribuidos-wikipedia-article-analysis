@@ -47,6 +47,9 @@ func (m *exchangeMiddleware) Send(msg Message) error {
 			false,
 			false,
 			amqp.Publishing{
+				Headers: amqp.Table{
+					ClientIDHeader: int64(msg.ClientID),
+				},
 				ContentType: "text/plain",
 				Body:        []byte(msg.Body),
 			})
@@ -64,6 +67,9 @@ func (m *exchangeMiddleware) SendToKey(msg Message, routingKey string) error {
 		false,
 		false,
 		amqp.Publishing{
+			Headers: amqp.Table{
+				ClientIDHeader: int64(msg.ClientID),
+			},
 			ContentType: "text/plain",
 			Body:        []byte(msg.Body),
 		})

@@ -83,14 +83,14 @@ func (w *YearFilterWorker) handleMessage(msg middleware.Message, ack, nack func(
 		slog.Error("While serializing record", "err", err) 
 		return
 	}
-	w.outputExchange.SendToKey(middleware.Message{Body: string(bytesEn)}, w.routingKeys[0])
+	w.outputExchange.SendToKey(middleware.Message{ClientID: msg.ClientID, Body: string(bytesEn)}, w.routingKeys[0])
 
 	bytesBio, err := record.ToBytes(bioCandidates)
 	if err != nil {
 		slog.Error("While serializing record", "err", err) 
 		return
 	}
-	w.outputExchange.SendToKey(middleware.Message{Body: string(bytesBio)}, w.routingKeys[1])
+	w.outputExchange.SendToKey(middleware.Message{ClientID: msg.ClientID, Body: string(bytesBio)}, w.routingKeys[1])
 }
 
 func (w *YearFilterWorker) shutdown() {

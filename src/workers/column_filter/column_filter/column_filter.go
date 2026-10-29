@@ -85,14 +85,14 @@ func (w *ColumnFilterWorker) handleMessage(msg middleware.Message, ack, nack fun
 		slog.Error("While serializing record", "err", err) 
 		return
 	}
-	w.outputQ1ToQ2.Send(middleware.Message{Body: string(bytesq1q2)})
+	w.outputQ1ToQ2.Send(middleware.Message{ClientID: msg.ClientID, Body: string(bytesq1q2)})
 
 	bytesq3q5, err := record.ToBytes(q3q5)
 	if err != nil {
 		slog.Error("While serializing record", "err", err) 
 		return
 	}
-	w.outputQ3ToQ5.Send(middleware.Message{Body: string(bytesq3q5)})
+	w.outputQ3ToQ5.Send(middleware.Message{ClientID: msg.ClientID, Body: string(bytesq3q5)})
 }
 
 func (w *ColumnFilterWorker) shutdown() {

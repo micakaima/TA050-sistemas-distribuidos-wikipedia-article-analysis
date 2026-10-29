@@ -140,7 +140,7 @@ func (gateway *Gateway) handleArticlesBatch(client clientregistry.ClientState) e
 		return err
 	}
 
-	batchMessage, err := middleware.NewMessage(&rawArticlesBatch)
+	batchMessage, err := middleware.NewMessage(client.ClientID, &rawArticlesBatch)
 	if err != nil {
 		slog.Debug("While creating Raw Articles Batch message", "err", err)
 		return err
@@ -161,7 +161,7 @@ func (gateway *Gateway) handleEOF(client clientregistry.ClientState) error {
 	slog.Info("Received END_OF_RECORDS message")
 
 	eof := messages.EofMsg{}
-	eofMessage, err := middleware.NewMessage(&eof)
+	eofMessage, err := middleware.NewMessage(client.ClientID, &eof)
 	if err != nil {
 		slog.Debug("While creating EOF message", "err", err)
 		return err
