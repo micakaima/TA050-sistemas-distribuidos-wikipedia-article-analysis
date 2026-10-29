@@ -37,7 +37,6 @@ func DownloadImage(records []record.BioMetadata) []record.Q2Result {
 
 	for _, r := range records {
 		result := record.Q2Result{
-			ClientID: r.ClientID,
 			ArticleID: r.ArticleID,
 			Name: r.Name,
 			URL: r.URL,

@@ -10,7 +10,6 @@ func FilterByQuery(records []record.Record) (q1Toq2 []record.YearCandidate, q3To
  
 	for _, r := range records {
 		q1Toq2 = append(q1Toq2, record.YearCandidate{
-			ClientID: r.ClientID,
 			ArticleID: r.ArticleID,
 			DateModified: r.DateModified,
 			ImageURL: r.Image.ContentURL,
@@ -37,14 +36,12 @@ func FilterByYear(records []record.YearCandidate, year int) ([]record.EnglishCan
 	for _, r := range records {
 		if r.DateModified < limitYear {
 			enFiltered = append(enFiltered, record.EnglishCandidate {
-				ClientID: r.ClientID,
 				ArticleID: r.ArticleID,
 				DateModified: r.DateModified,
 				InLanguage: r.InLanguage,
 				URL: r.URL,
 			})
 			bioFiltered = append(bioFiltered, record.BioCandidate {
-				ClientID: r.ClientID,
 				ArticleID: r.ArticleID,
 				ImageURL: r.ImageURL,
 				Name: r.Name,
@@ -61,7 +58,6 @@ func FilterByEnglish(records []record.EnglishCandidate) []record.Q1Result {
 	for _, r := range records {
 		if r.InLanguage == "en" {
 			result = append(result, record.Q1Result {
-				ClientID: r.ClientID,
 				ArticleID: r.ArticleID,
 				DateModified: r.DateModified,
 				URL: r.URL,
@@ -77,7 +73,6 @@ func FilterByBio(records []record.BioCandidate) []record.BioMetadata {
 		sectionsLower := strings.ToLower(r.Sections)
 		if strings.Contains(sectionsLower, "biography") || strings.Contains(sectionsLower, "biographie") {
 			filtered = append(filtered, record.BioMetadata {
-				ClientID: r.ClientID,
 				ArticleID: r.ArticleID,
 				ImageURL: r.ImageURL,
 				Name: r.Name,

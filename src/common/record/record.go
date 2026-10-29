@@ -9,7 +9,6 @@ import (
 )
 
 type Record struct {
-	ClientID 	string `parquet:"-"`
 	ArticleID string `parquet:"identifier"`
 	Abstract     string `parquet:"abstract"`
 	DateModified int64  `parquet:"date_modified"`
@@ -27,7 +26,6 @@ type Record struct {
 }
 
 type YearCandidate struct {
-	ClientID 	string  
 	ArticleID string  
 	DateModified int64
 	ImageURL string 
@@ -38,7 +36,6 @@ type YearCandidate struct {
 }
 
 type EnglishCandidate struct {
-	ClientID 	string  
 	ArticleID string  
 	DateModified int64
 	InLanguage string
@@ -46,7 +43,6 @@ type EnglishCandidate struct {
 }
 
 type BioCandidate struct {
-	ClientID 	string  
 	ArticleID string  
 	ImageURL string 
 	Name     string 
@@ -55,7 +51,6 @@ type BioCandidate struct {
 }
 
 type BioMetadata struct {
-	ClientID 	string  
 	ArticleID string  
 	ImageURL string 
 	Name     string 
@@ -63,14 +58,12 @@ type BioMetadata struct {
 }
 
 type Q1Result struct {
-	ClientID 	string  
 	ArticleID string  
 	DateModified int64
 	URL      string
 }
 
 type Q2Result struct {
-	ClientID 	string  
 	ArticleID string  
 	Name     string 
 	URL      string
