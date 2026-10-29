@@ -37,3 +37,10 @@ type Middleware interface {
 	// Close libera y cierra los canales y la conexión.
 	Close() error
 }
+
+type ExchangeMiddleware interface {
+	Middleware
+
+	// SendToKey envía un mensaje al exchange utilizando una routing key específica.
+	SendToKey(msg Message, routingKey string) error
+}

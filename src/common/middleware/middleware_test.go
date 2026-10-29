@@ -58,3 +58,17 @@ func TestNodeWithMultipleOutputQueues(t *testing.T) {
 		t.Errorf("unexpected body in abstractsQueue")
 	}
 }
+
+func TestMockMiddlewareSendToKey(t *testing.T) {
+	var mock ExchangeMiddleware = NewMockMiddleware()
+
+	err := mock.SendToKey(Message{Body: "routed_message"}, "my-key")
+	if err != nil {
+		t.Fatalf("unexpected error on SendToKey: %v", err)
+	}
+
+	mockConcrete := mock.(*MockMiddleware)
+	if len(mockConcrete.SentMessages) != 1 || mockConcrete.SentMessages[0].Body != "routed_message" {
+		t.Errorf("expected SentMessages to contain 'routed_message'")
+	}
+}

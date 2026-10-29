@@ -34,6 +34,13 @@ func (m *MockMiddleware) Send(msg Message) error {
 	return nil
 }
 
+func (m *MockMiddleware) SendToKey(msg Message, routingKey string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.SentMessages = append(m.SentMessages, msg)
+	return nil
+}
+
 func (m *MockMiddleware) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

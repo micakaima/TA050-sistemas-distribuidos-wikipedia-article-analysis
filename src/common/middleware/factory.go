@@ -48,7 +48,7 @@ func CreateQueueMiddleware(queueName string, connectionSettings ConnSettings) (M
 	}, nil
 }
 
-func CreateExchangeMiddleware(exchange string, keys []string, connectionSettings ConnSettings) (Middleware, error) {
+func CreateExchangeMiddleware(exchange string, keys []string, connectionSettings ConnSettings) (ExchangeMiddleware, error) {
 	connection, channel, err := connect(connectionSettings)
 	if err != nil {
 		return nil, err

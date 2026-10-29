@@ -56,3 +56,19 @@ func (m *exchangeMiddleware) Send(msg Message) error {
 	}
 	return nil
 }
+
+func (m *exchangeMiddleware) SendToKey(msg Message, routingKey string) error {
+	err := m.channel.Publish(
+		m.exchange,
+		routingKey,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte(msg.Body),
+		})
+	if err != nil {
+		return ErrMessageMiddlewareMessage
+	}
+	return nil
+}
