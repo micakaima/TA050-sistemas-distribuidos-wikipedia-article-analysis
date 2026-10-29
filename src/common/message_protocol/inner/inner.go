@@ -1,7 +1,7 @@
 package messageprotocol
 
 import (
-	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/utils"
+	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
 )
 
