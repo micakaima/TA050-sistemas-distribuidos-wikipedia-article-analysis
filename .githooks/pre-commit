@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
-# Función de formateo: prefiere goimports, fallback a gofmt
+MODULE="TA050-sistemas-distribuidos-wikipedia-article-analysis"
+
+# Función de formateo: prefiere goimports (con -local), fallback a gofmt
 format_files() {
     local files="$@"
     if command -v goimports >/dev/null 2>&1; then
-        goimports -w $files
+        goimports -local "$MODULE" -w $files
     elif [ -x "$HOME/go/bin/goimports" ]; then
-        "$HOME/go/bin/goimports" -w $files
+        "$HOME/go/bin/goimports" -local "$MODULE" -w $files
     elif command -v gofmt >/dev/null 2>&1; then
         echo "[pre-commit] Nota: goimports no encontrado, usando gofmt de respaldo."
         gofmt -w $files

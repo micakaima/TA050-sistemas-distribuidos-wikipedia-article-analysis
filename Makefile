@@ -24,13 +24,15 @@ install-tools:
 	go install golang.org/x/tools/cmd/goimports@latest
 .PHONY: install-tools
 
+MODULE := TA050-sistemas-distribuidos-wikipedia-article-analysis
+
 fmt:
 	@if command -v goimports >/dev/null 2>&1; then \
 		echo "Formateando proyecto con goimports..."; \
-		goimports -w .; \
+		goimports -local $(MODULE) -w .; \
 	elif [ -x "$$HOME/go/bin/goimports" ]; then \
 		echo "Formateando proyecto con goimports..."; \
-		"$$HOME/go/bin/goimports" -w .; \
+		"$$HOME/go/bin/goimports" -local $(MODULE) -w .; \
 	elif command -v gofmt >/dev/null 2>&1; then \
 		echo "Formateando proyecto con gofmt..."; \
 		gofmt -s -w .; \
