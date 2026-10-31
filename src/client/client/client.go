@@ -66,7 +66,7 @@ func connectToServer(host, port string) (net.Conn, error) {
 
 func (client *Client) Run() error {
 	defer client.conn.Close()
-	go client.handleSignals()
+	client.handleSignals()
 
 	if err := client.sendWikiRecords(); err != nil {
 		if client.running.Load() {
@@ -88,10 +88,12 @@ func (client *Client) Run() error {
 func (client *Client) handleSignals() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	<-signals
-	slog.Info("SIGTERM signal received")
-	client.running.Store(false)
-	client.conn.Close()
+	go func() {
+		<-signals
+		slog.Info("SIGTERM signal received")
+		client.running.Store(false)
+		client.conn.Close()
+	}()
 }
 
 func (client *Client) expectMsgType(expectedMsgCode external.ExternalMsgCode) error {

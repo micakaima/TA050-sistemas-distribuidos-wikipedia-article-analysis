@@ -66,7 +66,7 @@ func NewGateway(config GatewayConfig) (*Gateway, error) {
 
 func (gateway *Gateway) Run() error {
 	defer gateway.listener.Close()
-	go gateway.handleSignals()
+	gateway.handleSignals()
 
 	go gateway.outputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
 		gateway.handleClientResponse(msg, ack, nack)
@@ -84,7 +84,6 @@ func (gateway *Gateway) Run() error {
 
 		client := clientregistry.NewClientState(conn)
 		gateway.registry.Add(client)
-
 		go gateway.handleClientRequest(client)
 	}
 
@@ -101,10 +100,12 @@ func (gateway *Gateway) Run() error {
 func (gateway *Gateway) handleSignals() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	<-signals
-	slog.Info("SIGTERM signal received")
-	gateway.running.Store(false)
-	gateway.listener.Close()
+	go func() {
+		<-signals
+		slog.Info("SIGTERM signal received")
+		gateway.running.Store(false)
+		gateway.listener.Close()
+	}()
 }
 
 func (gateway *Gateway) handleClientRequest(client clientregistry.ClientState) {
