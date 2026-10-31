@@ -219,7 +219,7 @@ func (client *Client) handleQueryResult() error {
 }
 
 func (client *Client) saveResult(queryResult qresult.QueryResult) error {
-	filename := filepath.Join(client.config.OutputDir, fmt.Sprintf("query_%v_result.txt", queryResult.QueryCode))
+	path := client.generateOutputPath(queryResult)
 
 	var resultWriter qresult.WritableResult
 	switch queryResult.QueryCode {
@@ -232,7 +232,7 @@ func (client *Client) saveResult(queryResult qresult.QueryResult) error {
 	default:
 		return fmt.Errorf(errors.UnknownQueryResultCode)
 	}
-	return resultWriter.WriteToFile(filename)
+	return resultWriter.WriteToFile(path)
 }
 
 func (client *Client) handleEOF() error {
@@ -241,4 +241,8 @@ func (client *Client) handleEOF() error {
 		return err
 	}
 	return nil
+}
+
+func (client *Client) generateOutputPath(queryResult qresult.QueryResult) string {
+	return filepath.Join(client.config.OutputDir, fmt.Sprintf("query_%v_result.txt", queryResult.QueryCode))
 }

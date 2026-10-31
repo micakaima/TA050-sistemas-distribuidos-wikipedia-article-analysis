@@ -3,7 +3,6 @@ package messageprotocol
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math"
 
 	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/errors"
@@ -196,21 +195,21 @@ func serializeValue(val interface{}) ([]byte, error) {
 }
 
 // Deserializa una fila / campo con subcampos crudo.
-// Primero lee la cantidad de columnas / subcampos y luego, en base a esta cantidad,
-// por cada subcampo lee su nombre, y deserializa su valor correspondiente.
-func DeserializeMap(reader io.Reader) (map[string]any, error) {
-	numColumns, err := ReadUint32(reader)
+// Primero incluye la cantidad de columnas / subcampos y luego, en base a esta cantidad,
+// por cada subcampo se incluye su nombre (key), y se deserializa su valor correspondiente.
+func DeserializeMapFromBytes(data []byte, offset *int) (map[string]interface{}, error) {
+	numColumns, err := ReadUint32FromBytes(data, offset)
 	if err != nil {
 		return nil, err
 	}
 
 	m := make(map[string]interface{}, numColumns)
 	for i := uint32(0); i < numColumns; i++ {
-		key, err := ReadString(reader)
+		key, err := ReadStringFromBytes(data, offset)
 		if err != nil {
 			return nil, err
 		}
-		val, err := deserializeValue(reader)
+		val, err := deserializeValueFromBytes(data, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -220,10 +219,10 @@ func DeserializeMap(reader io.Reader) (map[string]any, error) {
 }
 
 // Deserializa un valor correspondiente a un campo / subcampo.
-// Primero lee el tipo de valor que es (string, bool, list, etc.), y luego deserializa el valor
+// Primero incluye el tipo de valor que es (string, bool, list, etc.), y luego se deserializa el valor
 // según el tipo, análogamente a cómo se serializó.
-func deserializeValue(reader io.Reader) (any, error) {
-	valTypeByte, err := ReadByte(reader)
+func deserializeValueFromBytes(data []byte, offset *int) (any, error) {
+	valTypeByte, err := ReadByteFromBytes(data, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -232,44 +231,36 @@ func deserializeValue(reader io.Reader) (any, error) {
 	switch valType {
 	case TypeNil:
 		return nil, nil
-
 	case TypeString:
-		return ReadString(reader)
-
+		return ReadStringFromBytes(data, offset)
 	case TypeInt64:
-		return ReadInt64(reader)
-
+		return ReadInt64FromBytes(data, offset)
 	case TypeUint64:
-		return ReadUint64(reader)
-
+		return ReadUint32FromBytes(data, offset)
 	case TypeFloat64:
-		return ReadFloat64(reader)
-
+		return ReadFloat64FromBytes(data, offset)
 	case TypeBool:
-		b, err := ReadByte(reader)
+		b, err := ReadByteFromBytes(data, offset)
 		if err != nil {
 			return nil, err
 		}
 		return b == 1, nil
-
 	case TypeMap:
-		return DeserializeMap(reader)
-
+		return DeserializeMapFromBytes(data, offset)
 	case TypeList:
-		count, err := ReadUint32(reader)
+		len, err := ReadUint32FromBytes(data, offset)
 		if err != nil {
 			return nil, err
 		}
-		list := make([]interface{}, count)
-		for i := uint32(0); i < count; i++ {
-			item, err := deserializeValue(reader)
+		list := make([]any, len)
+		for i := uint32(0); i < len; i++ {
+			item, err := deserializeValueFromBytes(data, offset)
 			if err != nil {
 				return nil, err
 			}
 			list[i] = item
 		}
 		return list, nil
-
 	default:
 		return nil, fmt.Errorf(errors.UnknownValueType)
 	}

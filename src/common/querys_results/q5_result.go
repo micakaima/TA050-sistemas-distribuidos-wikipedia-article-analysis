@@ -1,19 +1,20 @@
 package querysresults
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
 	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
 )
 
+// Representa el resultado final de la query 5. Implementa la interfaz WritableResult.
 type Q5Result struct {
 	ResultArticles []AboveAverageArticle
 }
 
+// Representa un artículo escrito a partir del 2021 cuya cant. de palabras en el abstract es
+// mayor al promedio de palabras de abstract de los artículos escritos hasta el 2020 inclusive.
 type AboveAverageArticle struct {
 	ArticleID string
 	URL       string
@@ -31,31 +32,22 @@ func (article *AboveAverageArticle) ToBytes() ([]byte, error) {
 	return result, nil
 }
 
-func AboveAverageArticleFromBytes(data []byte) (*AboveAverageArticle, error) {
-	reader := bytes.NewReader(data)
-	article, err := AboveAverageArticleFromReader(reader)
+func AboveAverageArticleFromBytes(data []byte, offset *int) (*AboveAverageArticle, error) {
+	articleID, err := utils.ReadStringFromBytes(data, offset)
 	if err != nil {
 		return nil, err
 	}
-	return &article, nil
-}
-
-func AboveAverageArticleFromReader(reader io.Reader) (AboveAverageArticle, error) {
-	articleID, err := utils.ReadString(reader)
+	url, err := utils.ReadStringFromBytes(data, offset)
 	if err != nil {
-		return AboveAverageArticle{}, err
+		return nil, err
 	}
-	URL, err := utils.ReadString(reader)
+	wordCount, err := utils.ReadUint32FromBytes(data, offset)
 	if err != nil {
-		return AboveAverageArticle{}, err
+		return nil, err
 	}
-	wordCount, err := utils.ReadUint32(reader)
-	if err != nil {
-		return AboveAverageArticle{}, err
-	}
-	return AboveAverageArticle{
+	return &AboveAverageArticle{
 		ArticleID: articleID,
-		URL:       URL,
+		URL:       url,
 		WordCount: wordCount,
 	}, nil
 }
@@ -73,22 +65,22 @@ func (queryResult *Q5Result) ToBytes() ([]byte, error) {
 }
 
 func Q5ResultFromBytes(data []byte) (*Q5Result, error) {
-	reader := bytes.NewReader(data)
-
-	numArticles, err := utils.ReadUint32(reader)
+	offset := 0
+	numArticles, err := utils.ReadUint32FromBytes(data, &offset)
 	if err != nil {
 		return nil, err
 	}
 
-	resultArticles := []AboveAverageArticle{}
+	articles := []AboveAverageArticle{}
 	for range numArticles {
-		article, err := AboveAverageArticleFromReader(reader)
+		article, err := AboveAverageArticleFromBytes(data, &offset)
 		if err != nil {
 			return nil, err
 		}
-		resultArticles = append(resultArticles, article)
+		articles = append(articles, *article)
 	}
-	return &Q5Result{ResultArticles: resultArticles}, nil
+	q5Result := Q5Result{ResultArticles: articles}
+	return &q5Result, nil
 }
 
 func (queryResult *Q5Result) WriteToFile(path string) error {

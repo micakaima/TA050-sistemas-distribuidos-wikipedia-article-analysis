@@ -1,17 +1,18 @@
 package querysresults
 
 import (
-	"bytes"
-	"io"
-
-	safeio "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/safe_socket"
 	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
 )
 
+// Interfaz para representar los resultados de las querys que finalmente se graban al disco del cliente
+// como parte de la respuesta.
 type WritableResult interface {
+	// Dada una ruta, escribe en ella el resultado total final de la query en cuestión.
 	WriteToFile(filepath string) error
 }
 
+// Representa un resultado final de una query cualquiera. Incluye el código de la query (1-5),
+// y el contenido del resultado en bytes.
 type QueryResult struct {
 	QueryCode     QueryResultCode
 	ResultPayload []byte
@@ -19,33 +20,18 @@ type QueryResult struct {
 
 func (res *QueryResult) ToBytes() ([]byte, error) {
 	result := []byte{byte(res.QueryCode)}
-	result = append(result, utils.SerializeUint32(uint32(len(res.ResultPayload)))...)
 	result = append(result, res.ResultPayload...)
 	return result, nil
 }
 
 func QueryResultFromBytes(data []byte) (*QueryResult, error) {
-	reader := bytes.NewReader(data)
-	queryResult, err := QueryResultFromReader(reader)
+	offset := 0
+	queryCode, err := utils.ReadByteFromBytes(data, &offset)
 	if err != nil {
 		return nil, err
 	}
-	return &queryResult, nil
-}
-
-func QueryResultFromReader(reader io.Reader) (QueryResult, error) {
-	queryCode, err := utils.ReadByte(reader)
-	if err != nil {
-		return QueryResult{}, err
-	}
-	payloadLen, err := utils.ReadUint32(reader)
-	if err != nil {
-		return QueryResult{}, err
-	}
-	payload, err := safeio.RecvAll(reader, int(payloadLen))
-
-	return QueryResult{
+	return &QueryResult{
 		QueryCode:     QueryResultCode(queryCode),
-		ResultPayload: payload,
+		ResultPayload: data[offset:],
 	}, nil
 }

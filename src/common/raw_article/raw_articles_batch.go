@@ -1,9 +1,6 @@
 package messageprotocol
 
 import (
-	"bytes"
-	"io"
-
 	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
 )
 
@@ -25,29 +22,20 @@ func (batch *RawArticlesBatch) ToBytes() ([]byte, error) {
 
 // Devuelve un batch de artículos / filas crudas a partir de una serie de bytes.
 func RawArticlesBatchFromBytes(data []byte) (*RawArticlesBatch, error) {
-	reader := bytes.NewReader(data)
-	rawArticlesBatch, err := RawArticlesBatchFromReader(reader)
-	if err != nil {
-		return nil, err
-	}
-	return &rawArticlesBatch, nil
-}
-
-// Devuelve un batch de artículos / filas crudas a partir de un reader.
-// Lee [Largo del batch] y luego, en base a éste, lee los bytes de todos los artículos que hacen al batch.
-func RawArticlesBatchFromReader(reader io.Reader) (RawArticlesBatch, error) {
-	numArticles, err := utils.ReadUint32(reader)
+	offset := 0
+	numArticles, err := utils.ReadUint32FromBytes(data, &offset)
 	if err != nil {
 		return nil, err
 	}
 
-	batch := []RawArticle{}
+	articles := []RawArticle{}
 	for range numArticles {
-		record, err := RawArticleFromReader(reader)
+		article, err := RawArticleFromBytes(data, &offset)
 		if err != nil {
 			return nil, err
 		}
-		batch = append(batch, record)
+		articles = append(articles, *article)
 	}
-	return batch, nil
+	batch := RawArticlesBatch(articles)
+	return &batch, nil
 }

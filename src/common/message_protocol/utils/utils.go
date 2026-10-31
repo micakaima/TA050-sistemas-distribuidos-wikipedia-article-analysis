@@ -1,9 +1,11 @@
 package messageprotocol
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 
+	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/errors"
 	safeio "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/safe_socket"
 )
 
@@ -57,6 +59,64 @@ func ReadByte(reader io.Reader) (byte, error) {
 		return 0, err
 	}
 	return b[0], nil
+}
+
+func ReadStringFromBytes(data []byte, offset *int) (string, error) {
+	length, err := ReadUint32FromBytes(data, offset)
+	if err != nil {
+		return "", err
+	}
+	if *offset+int(length) > len(data) {
+		return "", fmt.Errorf(errors.ValueTooShortError)
+	}
+	s := string(data[*offset : *offset+int(length)])
+	*offset += int(length)
+	return s, nil
+}
+
+func ReadUint32FromBytes(data []byte, offset *int) (uint32, error) {
+	if *offset+UINT32_SIZE > len(data) {
+		return 0, fmt.Errorf(errors.ValueTooShortError)
+	}
+	num := binary.BigEndian.Uint32(data[*offset : *offset+UINT32_SIZE])
+	*offset += UINT32_SIZE
+	return num, nil
+}
+
+func ReadInt64FromBytes(data []byte, offset *int) (int64, error) {
+	if *offset+INT64_SIZE > len(data) {
+		return 0, fmt.Errorf(errors.ValueTooShortError)
+	}
+	num := int64(binary.BigEndian.Uint64(data[*offset : *offset+INT64_SIZE]))
+	*offset += INT64_SIZE
+	return num, nil
+}
+
+func ReadUint64FromBytes(data []byte, offset *int) (uint64, error) {
+	if *offset+UINT64_SIZE > len(data) {
+		return 0, fmt.Errorf(errors.ValueTooShortError)
+	}
+	num := binary.BigEndian.Uint64(data[*offset : *offset+UINT64_SIZE])
+	*offset += UINT64_SIZE
+	return num, nil
+}
+
+func ReadFloat64FromBytes(data []byte, offset *int) (float64, error) {
+	if *offset+FLOAT64_SIZE > len(data) {
+		return 0, fmt.Errorf(errors.ValueTooShortError)
+	}
+	bits := binary.BigEndian.Uint64(data[*offset : *offset+FLOAT64_SIZE])
+	*offset += FLOAT64_SIZE
+	return float64(bits), nil
+}
+
+func ReadByteFromBytes(data []byte, offset *int) (byte, error) {
+	if *offset >= len(data) {
+		return 0, fmt.Errorf(errors.ValueTooShortError)
+	}
+	b := data[*offset]
+	*offset++
+	return b, nil
 }
 
 func GetKeyAsString(m map[string]any, key string) string {
