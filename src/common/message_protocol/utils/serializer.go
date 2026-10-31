@@ -191,8 +191,7 @@ func serializeValue(val interface{}) ([]byte, error) {
 		return res, nil
 
 	default:
-		fmt.Println("UNKNOWN TYPE CODE: ", v)
-		return nil, fmt.Errorf(errors.UnknownTypeCode)
+		return nil, fmt.Errorf(errors.UnknownValueType)
 	}
 }
 
@@ -272,6 +271,6 @@ func deserializeValue(reader io.Reader) (any, error) {
 		return list, nil
 
 	default:
-		return nil, fmt.Errorf(errors.UnknownTypeCode)
+		return nil, fmt.Errorf(errors.UnknownValueType)
 	}
 }

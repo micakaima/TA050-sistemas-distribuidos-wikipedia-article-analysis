@@ -10,9 +10,10 @@ import (
 
 	clientregistry "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/gateway/client_registry"
 
-	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/messages"
+	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/codec"
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
+	qresult "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/querys_results"
 )
 
 type GatewayConfig struct {
@@ -135,13 +136,13 @@ loop:
 }
 
 func (gateway *Gateway) handleArticlesBatch(client clientregistry.ClientState) error {
-	rawArticlesBatch, err := external.ReadArticlesBatch(client.Conn) // rawArticlesBatch
+	rawArticlesBatch, err := external.ReadArticlesBatch(client.Conn)
 	if err != nil {
 		slog.Debug("While reading Articles Batch", "err", err)
 		return err
 	}
 
-	batchMessage, err := middleware.NewMessage(client.ClientID, &rawArticlesBatch)
+	batchMessage, err := middleware.NewMessage(client.ClientID, messages.ArticlesBatchCode, &rawArticlesBatch)
 	if err != nil {
 		slog.Debug("While creating Raw Articles Batch message", "err", err)
 		return err
@@ -162,7 +163,7 @@ func (gateway *Gateway) handleEOF(client clientregistry.ClientState) error {
 	slog.Info("Received END_OF_RECORDS message")
 
 	eof := messages.EofMsg{}
-	eofMessage, err := middleware.NewMessage(client.ClientID, &eof)
+	eofMessage, err := middleware.NewMessage(client.ClientID, messages.EOFCode, &eof)
 	if err != nil {
 		slog.Debug("While creating EOF message", "err", err)
 		return err
@@ -180,5 +181,56 @@ func (gateway *Gateway) handleEOF(client clientregistry.ClientState) error {
 }
 
 func (gateway *Gateway) handleClientResponse(msg middleware.Message, ack func(), nack func()) {
+	gateway.registry.WithLock(func(clients map[uint64]clientregistry.ClientState) {
+		clientState, ok := clients[msg.ClientID]
+		if !ok {
+			slog.Warn("No client is target for this message")
+			nack()
+			return
+		}
+		switch msg.MsgCode {
+		case messages.ResultCode:
+			gateway.handleQueryResult(msg, clientState, ack, nack)
 
+		case messages.EOFCode:
+			gateway.handleResultEOF(msg, clientState, ack, nack)
+
+		default:
+			slog.Debug("Received unexpected inner message code")
+			nack()
+		}
+	})
+}
+
+func (gateway *Gateway) handleQueryResult(msg middleware.Message, clientState clientregistry.ClientState, ack func(), nack func()) {
+	queryResult, err := qresult.QueryResultFromBytes([]byte(msg.Body))
+	if err != nil {
+		slog.Debug("While reading from output queue", "err", err)
+		nack()
+		gateway.outputQueue.StopConsuming()
+		return
+	}
+	if err := external.WriteQueryResult(clientState.Conn, *queryResult); err != nil {
+		slog.Debug("While writing QueryResult message", "err", err)
+		return
+	}
+	ack()
+}
+
+func (gateway *Gateway) handleResultEOF(msg middleware.Message, clientState clientregistry.ClientState, ack func(), nack func()) {
+	if err := external.WriteEOF(clientState.Conn); err != nil {
+		slog.Debug("While writing EOF message", "err", err)
+		return
+	}
+	msgType, err := external.ReadMsgCode(clientState.Conn)
+	if err != nil {
+		slog.Debug("While reading message type", "err", err)
+		return
+	}
+	if msgType != external.Ack {
+		slog.Debug("Unexpected message type", "err", err)
+		return
+	}
+	gateway.registry.Remove(msg.ClientID)
+	ack()
 }

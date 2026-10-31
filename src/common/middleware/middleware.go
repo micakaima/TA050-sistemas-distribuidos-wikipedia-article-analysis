@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol"
+	inner "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 )
 
 var (
@@ -16,15 +17,16 @@ const ClientIDHeader = "client_id"
 
 type Message struct {
 	ClientID uint64
+	MsgCode  inner.InnerMsgCode
 	Body     string
 }
 
-func NewMessage(clientID uint64, msg messages.SerializableMessage) (*Message, error) {
+func NewMessage(clientID uint64, mcode inner.InnerMsgCode, msg messages.SerializableMessage) (*Message, error) {
 	msgBytes, err := msg.ToBytes()
 	if err != nil {
 		return nil, err
 	}
-	return &Message{ClientID: clientID, Body: string(msgBytes)}, nil
+	return &Message{ClientID: clientID, MsgCode: mcode, Body: string(msgBytes)}, nil
 }
 
 type Event struct {

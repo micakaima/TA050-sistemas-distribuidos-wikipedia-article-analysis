@@ -12,7 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/messages"
+	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/codec"
+	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/errors"
+	qresult "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/querys_results"
+	article "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/raw_article"
 
 	"github.com/parquet-go/parquet-go"
 )
@@ -91,13 +94,13 @@ func (client *Client) handleSignals() {
 	client.conn.Close()
 }
 
-func (client *Client) expectMsgType(expectedMsgType external.MsgCode) error {
-	msgType, err := external.ReadMsgCode(client.conn)
+func (client *Client) expectMsgType(expectedMsgCode external.ExternalMsgCode) error {
+	msgCode, err := external.ReadMsgCode(client.conn)
 	if err != nil {
 		slog.Error("While reading message type", "err", err)
 		return err
 	}
-	if msgType != expectedMsgType {
+	if msgCode != expectedMsgCode {
 		return fmt.Errorf(UnexpectedMsgError)
 	}
 	return nil
@@ -133,9 +136,9 @@ func (client *Client) sendFileRows(path string) error {
 	reader := parquet.NewReader(file)
 	defer reader.Close()
 
-	batch := make([]external.RawArticle, 0, client.config.BatchSize)
+	batch := make([]article.RawArticle, 0, client.config.BatchSize)
 	for {
-		rawArticle := make(external.RawArticle)
+		rawArticle := make(article.RawArticle)
 		if err := reader.Read(&rawArticle); err != nil {
 			if err == io.EOF {
 				return client.flushArticlesBatch(batch)
@@ -148,13 +151,13 @@ func (client *Client) sendFileRows(path string) error {
 			if err := client.flushArticlesBatch(batch); err != nil {
 				return err
 			}
-			batch = make([]external.RawArticle, 0, client.config.BatchSize)
+			batch = make([]article.RawArticle, 0, client.config.BatchSize)
 		}
 
 	}
 }
 
-func (client *Client) flushArticlesBatch(batch []external.RawArticle) error {
+func (client *Client) flushArticlesBatch(batch []article.RawArticle) error {
 	if len(batch) > 0 {
 		if err := external.WriteArticlesBatch(client.conn, batch); err != nil {
 			return err
@@ -177,5 +180,65 @@ func (client *Client) sendEOF() error {
 }
 
 func (client *Client) recvQueriesAnswers() error {
+	for {
+		msgCode, err := external.ReadMsgCode(client.conn)
+		if err != nil {
+			slog.Error("While reading message code")
+			return err
+		}
+
+		switch msgCode {
+		case external.QueryResult:
+			if err := client.handleQueryResult(); err != nil {
+				slog.Error("While handling Query Result message", "err", err)
+				return err
+			}
+		case external.EOF:
+			if err := client.handleEOF(); err != nil {
+				slog.Error("While handling EOF message", "err", err)
+				return err
+			}
+			return nil
+		default:
+			return fmt.Errorf(errors.UnknownExtMsgCode)
+		}
+	}
+}
+
+func (client *Client) handleQueryResult() error {
+	queryResult, err := external.ReadQueryResult(client.conn)
+	if err != nil {
+		slog.Debug("While reading Query Result message")
+		return err
+	}
+	if err := client.saveResult(queryResult); err != nil {
+		slog.Debug("While saving query result")
+		return err
+	}
+	return nil
+}
+
+func (client *Client) saveResult(queryResult qresult.QueryResult) error {
+	filename := filepath.Join(client.config.OutputDir, fmt.Sprintf("query_%v_result.txt", queryResult.QueryCode))
+
+	var resultWriter qresult.WritableResult
+	switch queryResult.QueryCode {
+	case qresult.Q5Code:
+		q5Result, err := qresult.Q5ResultFromBytes(queryResult.ResultPayload)
+		if err != nil {
+			return err
+		}
+		resultWriter = q5Result
+	default:
+		return fmt.Errorf(errors.UnknownQueryResultCode)
+	}
+	return resultWriter.WriteToFile(filename)
+}
+
+func (client *Client) handleEOF() error {
+	if err := external.WriteAck(client.conn); err != nil {
+		slog.Debug("While writing Ack message", "err", err)
+		return err
+	}
 	return nil
 }

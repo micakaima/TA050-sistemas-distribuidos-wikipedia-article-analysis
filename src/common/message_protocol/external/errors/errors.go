@@ -1,6 +1,8 @@
 package messageprotocol
 
 const (
-	ValueTooShortError = "Value is too short"
-	UnknownTypeCode    = "Unknown type code"
+	ValueTooShortError     = "Value is too short"
+	UnknownValueType       = "Unknown value type"
+	UnknownExtMsgCode      = "Unknown external message code"
+	UnknownQueryResultCode = "Unknown query result code"
 )
