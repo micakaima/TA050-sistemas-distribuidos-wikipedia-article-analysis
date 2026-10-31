@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"sync/atomic"
 	"syscall"
 
@@ -14,6 +15,7 @@ import (
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
 	qresult "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/querys_results"
+	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
 type GatewayConfig struct {
@@ -30,6 +32,7 @@ type Gateway struct {
 	inputQueue  middleware.Middleware
 	outputQueue middleware.Middleware
 	listener    net.Listener
+	wg          sync.WaitGroup
 	running     atomic.Bool
 }
 
@@ -66,10 +69,14 @@ func NewGateway(config GatewayConfig) (*Gateway, error) {
 
 func (gateway *Gateway) Run() error {
 	defer gateway.listener.Close()
-	gateway.handleSignals()
+	done := make(chan struct{})
+	gateway.handleSignals(done)
+	defer close(done)
 
-	go gateway.outputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
-		gateway.handleClientResponse(msg, ack, nack)
+	utils.SpawnWithWG(&gateway.wg, func() {
+		gateway.outputQueue.StartConsuming(func(msg middleware.Message, ack func(), nack func()) {
+			gateway.handleClientResponse(msg, ack, nack)
+		})
 	})
 
 	for {
@@ -84,28 +91,47 @@ func (gateway *Gateway) Run() error {
 
 		client := clientregistry.NewClientState(conn)
 		gateway.registry.Add(client)
-		go gateway.handleClientRequest(client)
+
+		utils.SpawnWithWG(&gateway.wg, func() {
+			gateway.handleClientRequest(client)
+		})
 	}
 
-	gateway.outputQueue.StopConsuming()
-	gateway.registry.WithLock(func(clients map[uint64]clientregistry.ClientState) {
-		for _, clientState := range clients {
-			clientState.Conn.Close()
-		}
-	})
-
+	gateway.handleShutdown()
 	return nil
 }
 
-func (gateway *Gateway) handleSignals() {
+func (gateway *Gateway) handleSignals(done chan struct{}) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		<-signals
-		slog.Info("SIGTERM signal received")
-		gateway.running.Store(false)
-		gateway.listener.Close()
+		select {
+		case <-signals:
+			slog.Info("SIGTERM signal received")
+			gateway.running.Store(false)
+			gateway.listener.Close()
+		case <-done:
+			return
+		}
 	}()
+}
+
+func (gateway *Gateway) handleShutdown() {
+	gateway.outputQueue.StopConsuming()
+	gateway.registry.WithLock(func(clients map[uint64]clientregistry.ClientState) {
+		for _, clientState := range clients {
+			if err := clientState.Conn.Close(); err != nil {
+				slog.Debug("While closing client conn")
+			}
+		}
+	})
+	gateway.wg.Wait()
+	if err := gateway.inputQueue.Close(); err != nil {
+		slog.Debug("While closing input queue")
+	}
+	if err := gateway.outputQueue.Close(); err != nil {
+		slog.Debug("While closing output queue")
+	}
 }
 
 func (gateway *Gateway) handleClientRequest(client clientregistry.ClientState) {
