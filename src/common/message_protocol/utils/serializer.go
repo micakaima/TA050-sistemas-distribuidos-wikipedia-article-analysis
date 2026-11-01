@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/errors"
+	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
 const UINT32_SIZE = 4
@@ -194,6 +194,14 @@ func serializeValue(val interface{}) ([]byte, error) {
 	}
 }
 
+func SerializeSet(s map[string]struct{}) []byte {
+	result := SerializeUint32(uint32(len(s)))
+	for k := range s {
+		result = append(result, SerializeString(k)...)
+	}
+	return result
+}
+
 // Deserializa una fila / campo con subcampos crudo.
 // Primero incluye la cantidad de columnas / subcampos y luego, en base a esta cantidad,
 // por cada subcampo se incluye su nombre (key), y se deserializa su valor correspondiente.
@@ -264,4 +272,20 @@ func deserializeValueFromBytes(data []byte, offset *int) (any, error) {
 	default:
 		return nil, fmt.Errorf(errors.UnknownValueType)
 	}
+}
+
+func DeserializeSet(data []byte, offset *int) (map[string]struct{}, error) {
+	numItems, err := ReadUint32FromBytes(data, offset)
+	if err != nil {
+		return nil, err
+	}
+	s := make(map[string]struct{}, numItems)
+	for i := uint32(0); i < numItems; i++ {
+		key, err := ReadStringFromBytes(data, offset)
+		if err != nil {
+			return nil, err
+		}
+		s[key] = struct{}{}
+	}
+	return s, nil
 }

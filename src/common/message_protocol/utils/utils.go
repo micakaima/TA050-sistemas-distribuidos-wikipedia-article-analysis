@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/errors"
 	safeio "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/safe_socket"
+	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
 func ReadString(reader io.Reader) (string, error) {

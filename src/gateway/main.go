@@ -52,6 +52,10 @@ func loadConfig() (gateway.GatewayConfig, error) {
 
 func run() int {
 	config, err := loadConfig()
+	if err != nil {
+		slog.Error("While loading config", "err", err)
+		return 1
+	}
 	gateway, err := gateway.NewGateway(config)
 	if err != nil {
 		slog.Error("While creating new Gateway")

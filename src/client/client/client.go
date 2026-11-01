@@ -13,9 +13,9 @@ import (
 	"time"
 
 	external "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/codec"
-	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/errors"
 	qresult "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/querys_results"
 	article "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/raw_article"
+	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 
 	"github.com/parquet-go/parquet-go"
 )

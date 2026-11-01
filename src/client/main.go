@@ -52,6 +52,10 @@ func loadConfig() (client.ClientConfig, error) {
 
 func run() int {
 	config, err := loadConfig()
+	if err != nil {
+		slog.Error("While loading config", "err", err)
+		return 1
+	}
 	client, err := client.NewClient(config)
 	if err != nil {
 		slog.Error("While creating new Client")
