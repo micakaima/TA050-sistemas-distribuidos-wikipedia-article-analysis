@@ -7,6 +7,7 @@ const (
 	YearCandidateCode
 	RawAbstractCode
 	VocabularyCode
+	WordCountCode
 	EOFCode
 	ResultCode
 )

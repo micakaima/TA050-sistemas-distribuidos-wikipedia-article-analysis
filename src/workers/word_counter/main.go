@@ -27,7 +27,7 @@ func loadConfig() (wcounter.WordCounterConfig, error) {
 	}
 
 	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if inputQueue == "" {
+	if outputQueue == "" {
 		return wcounter.WordCounterConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE")
 	}
 

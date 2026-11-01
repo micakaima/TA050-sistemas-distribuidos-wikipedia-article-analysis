@@ -69,12 +69,27 @@ services:
       dockerfile: src/workers/word_counter/Dockerfile
     container_name: word_counter
     depends_on:
-      - gateway
+      - stopwords_filter
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - INPUT_QUEUE=q3q5_queue
       - OUTPUT_QUEUE=vocabularies_queue
+  
+  stopwords_filter:
+    build:
+      context: .
+      dockerfile: src/workers/stopwords_filter/Dockerfile
+    container_name: stopwords_filter
+    depends_on:
+      - gateway
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE=vocabularies_queue
+      - OUTPUT_QUEUE_Q3=q3_queue
+      - OUTPUT_QUEUE_Q4=q4_queue
+      - OUTPUT_QUEUE_Q5=q5_queue
 
   year_filter:
     build:

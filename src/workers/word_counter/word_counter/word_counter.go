@@ -143,13 +143,11 @@ func extractVocabularies(rawAbstractBatch generic.Batch[*messages.RawAbstract]) 
 	vocabularies := messages.NewEmptyExtractedVocabularyBatch(rawAbstractBatch.Len())
 	for _, abs := range rawAbstractBatch.Items {
 		absVocabulary := extractVocabulary(abs.Abstract)
-		wordCount := uint32(len(absVocabulary))
 		vocabularies.Add(&messages.ExtractedVocabulary{
 			ArticleID:    abs.ArticleID,
 			DateModified: abs.DateModified,
 			InLanguage:   abs.InLanguage,
 			Vocabulary:   absVocabulary,
-			WordCount:    wordCount,
 		})
 	}
 	return vocabularies
@@ -158,8 +156,9 @@ func extractVocabularies(rawAbstractBatch generic.Batch[*messages.RawAbstract]) 
 func extractVocabulary(abstract string) map[string]struct{} {
 	vocabulary := make(map[string]struct{})
 	for _, word := range strings.Fields(abstract) {
-		if _, exists := vocabulary[word]; !exists {
-			vocabulary[word] = struct{}{}
+		lowercaseWord := strings.ToLower(word)
+		if _, exists := vocabulary[lowercaseWord]; !exists {
+			vocabulary[lowercaseWord] = struct{}{}
 		}
 	}
 	return vocabulary
