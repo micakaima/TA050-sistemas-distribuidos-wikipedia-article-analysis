@@ -3,7 +3,7 @@ package middleware
 import (
 	"errors"
 
-	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol"
+	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	inner "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 )
 
@@ -21,7 +21,7 @@ type Message struct {
 	Body     string
 }
 
-func NewMessage(clientID uint64, mcode inner.InnerMsgCode, msg messages.SerializableMessage) (*Message, error) {
+func NewMessage(clientID uint64, mcode inner.InnerMsgCode, msg generic.SerializableMessage) (*Message, error) {
 	msgBytes, err := msg.ToBytes()
 	if err != nil {
 		return nil, err

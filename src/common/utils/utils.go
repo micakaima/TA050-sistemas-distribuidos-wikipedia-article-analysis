@@ -1,6 +1,8 @@
 package utils
 
-import "sync"
+import (
+	"sync"
+)
 
 func SpawnWithWG(wg *sync.WaitGroup, fn func()) {
 	wg.Add(1)
