@@ -26,16 +26,28 @@ func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
 		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "INPUT_QUEUE")
 	}
 
-	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if outputQueue == "" {
-		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE")
+	outputQueueQ3 := os.Getenv("OUTPUT_QUEUE_Q3")
+	if outputQueueQ3 == "" {
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE_Q3")
+	}
+
+	outputQueueQ4 := os.Getenv("OUTPUT_QUEUE_Q4")
+	if outputQueueQ4 == "" {
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE_Q4")
+	}
+
+	outputQueueQ5 := os.Getenv("OUTPUT_QUEUE_Q5")
+	if outputQueueQ5 == "" {
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE_Q5")
 	}
 
 	return vextractor.VocabularyExtractorConfig{
-		MomHost:     momHost,
-		MomPort:     momPort,
-		InputQueue:  inputQueue,
-		OutputQueue: outputQueue,
+		MomHost:       momHost,
+		MomPort:       momPort,
+		InputQueue:    inputQueue,
+		OutputQueueQ3: outputQueueQ3,
+		OutputQueueQ4: outputQueueQ4,
+		OutputQueueQ5: outputQueueQ5,
 	}, nil
 }
 

@@ -17,15 +17,19 @@ import (
 )
 
 type VocabularyExtractorConfig struct {
-	MomHost     string
-	MomPort     int
-	InputQueue  string
-	OutputQueue string
+	MomHost       string
+	MomPort       int
+	InputQueue    string
+	OutputQueueQ3 string
+	OutputQueueQ4 string
+	OutputQueueQ5 string
 }
 
 type VocabularyExtractorWorker struct {
-	inputQueue  middleware.Middleware
-	outputQueue middleware.Middleware
+	inputQueue    middleware.Middleware
+	outputQueueQ3 middleware.Middleware
+	outputQueueQ4 middleware.Middleware
+	outputQueueQ5 middleware.Middleware
 }
 
 func New(config VocabularyExtractorConfig) (*VocabularyExtractorWorker, error) {
@@ -35,14 +39,29 @@ func New(config VocabularyExtractorConfig) (*VocabularyExtractorWorker, error) {
 	if err != nil {
 		return nil, err
 	}
-	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
+	outputQueueQ3, err := middleware.CreateQueueMiddleware(config.OutputQueueQ3, connSettings)
 	if err != nil {
 		inputQueue.Close()
 		return nil, err
 	}
+	outputQueueQ4, err := middleware.CreateQueueMiddleware(config.OutputQueueQ4, connSettings)
+	if err != nil {
+		inputQueue.Close()
+		outputQueueQ3.Close()
+		return nil, err
+	}
+	outputQueueQ5, err := middleware.CreateQueueMiddleware(config.OutputQueueQ5, connSettings)
+	if err != nil {
+		inputQueue.Close()
+		outputQueueQ3.Close()
+		outputQueueQ4.Close()
+		return nil, err
+	}
 	return &VocabularyExtractorWorker{
-		inputQueue:  inputQueue,
-		outputQueue: outputQueue,
+		inputQueue:    inputQueue,
+		outputQueueQ3: outputQueueQ3,
+		outputQueueQ4: outputQueueQ4,
+		outputQueueQ5: outputQueueQ5,
 	}, nil
 }
 
@@ -80,8 +99,14 @@ func (w *VocabularyExtractorWorker) shutdown() {
 	if err := w.inputQueue.Close(); err != nil {
 		slog.Error("While closing input queue", "err", err)
 	}
-	if err := w.outputQueue.Close(); err != nil {
-		slog.Error("While closing output queue", "err", err)
+	if err := w.outputQueueQ3.Close(); err != nil {
+		slog.Error("While closing Q3 output queue", "err", err)
+	}
+	if err := w.outputQueueQ4.Close(); err != nil {
+		slog.Error("While closing Q4 output queue", "err", err)
+	}
+	if err := w.outputQueueQ5.Close(); err != nil {
+		slog.Error("While closing Q5 output queue", "err", err)
 	}
 }
 
@@ -114,16 +139,19 @@ func (w *VocabularyExtractorWorker) handleRawAbstract(msg middleware.Message) er
 		return err
 	}
 	cleanVocabularies := extractCleanVocabularies(*rawAbstractBatch)
+	wordCounts := filterByQuery(cleanVocabularies)
 
-	vocabulariesMsg, err := middleware.NewMessage(msg.ClientID, messages.VocabularyCode, &cleanVocabularies)
+	// AGREGAR EL RESTO DE MENSAJES CUANDO ESTEN Q3 y Q4
+	wordCountsMsg, err := middleware.NewMessage(msg.ClientID, messages.WordCountCode, &wordCounts)
 	if err != nil {
-		slog.Debug("While creating Extracted Vocabulary Batch message", "err", err)
+		slog.Debug("While creating Word Count Batch message", "err", err)
 		return err
 	}
-	if err := w.outputQueue.Send(*vocabulariesMsg); err != nil {
-		slog.Debug("While sending Extracted Vocabulary Batch message", "err", err)
+	if err := w.outputQueueQ5.Send(*wordCountsMsg); err != nil {
+		slog.Debug("While sending Word Count Batch message", "err", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -134,7 +162,15 @@ func (w *VocabularyExtractorWorker) handleEOF(msg middleware.Message) error {
 		slog.Debug("While creating EOF message", "err", err)
 		return err
 	}
-	if err := w.outputQueue.Send(*eofMessage); err != nil {
+	if err := w.outputQueueQ3.Send(*eofMessage); err != nil {
+		slog.Debug("While sending EOF message", "err", err)
+		return err
+	}
+	if err := w.outputQueueQ4.Send(*eofMessage); err != nil {
+		slog.Debug("While sending EOF message", "err", err)
+		return err
+	}
+	if err := w.outputQueueQ5.Send(*eofMessage); err != nil {
 		slog.Debug("While sending EOF message", "err", err)
 		return err
 	}
@@ -167,4 +203,19 @@ func extractCleanVocabulary(abstract string, lang string) map[string]struct{} {
 		}
 	}
 	return cleanVocabulary
+}
+
+// AGREGAR EL RESTO DE RESULTADOS CUANDO ESTEN Q3 y Q4
+func filterByQuery(cleanVocabularies generic.Batch[*messages.ExtractedVocabulary]) generic.Batch[*messages.WordCount] {
+	wordCounts := messages.NewEmptyWordCountBatch(cleanVocabularies.Len())
+
+	for _, v := range cleanVocabularies.Items {
+		wordCounts.Add(&messages.WordCount{
+			ArticleID:    v.ArticleID,
+			DateModified: v.DateModified,
+			URL:          v.URL,
+			WordCount:    v.WordCount,
+		})
+	}
+	return wordCounts
 }
