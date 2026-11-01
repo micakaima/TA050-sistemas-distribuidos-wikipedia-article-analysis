@@ -39,12 +39,12 @@ type Gateway struct {
 func NewGateway(config GatewayConfig) (*Gateway, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
-	inputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueueName, connSettings)
+	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueueName, connSettings)
 	if err != nil {
 		return nil, err
 	}
 
-	outputQueue, err := middleware.CreateQueueMiddleware(config.InputQueueName, connSettings)
+	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueueName, connSettings)
 	if err != nil {
 		inputQueue.Close()
 		return nil, err

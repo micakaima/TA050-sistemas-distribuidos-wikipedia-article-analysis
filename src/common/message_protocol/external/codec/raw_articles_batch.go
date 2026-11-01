@@ -4,7 +4,6 @@ import (
 	"io"
 
 	safeio "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/safe_socket"
-	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
 	article "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/raw_article"
 )
@@ -35,9 +34,9 @@ func ReadArticlesBatch(reader io.Reader) (article.RawArticlesBatch, error) {
 	if err != nil {
 		return article.RawArticlesBatch{}, err
 	}
-	batch, err := generic.BatchFromBytes(data, article.RawArticleFromBytes)
+	batch, err := article.RawArticlesBatchFromBytes(data)
 	if err != nil {
 		return article.RawArticlesBatch{}, err
 	}
-	return article.RawArticlesBatch(batch), nil
+	return *batch, nil
 }

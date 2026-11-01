@@ -5,7 +5,7 @@ services:
       dockerfile: src/client/Dockerfile
     container_name: client_0
     depends_on:
-      - gateway
+      - column_filter
     environment:
       - INPUT_DIR=/input/input_0
       - OUTPUT_DIR=/output/output_0
@@ -20,9 +20,16 @@ services:
       context: .
       dockerfile: src/gateway/Dockerfile
     container_name: gateway
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     environment:
       - SERVER_HOST=gateway
       - SERVER_PORT=5678
+      - INPUT_QUEUE=raw_articles_queue
+      - OUTPUT_QUEUE=results_queue
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
 
   rabbitmq:
     build:
@@ -47,7 +54,8 @@ services:
       dockerfile: src/workers/column_filter/Dockerfile
     container_name: column_filter
     depends_on:
-      - year_filter
+      - gateway
+      # - year_filter
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672

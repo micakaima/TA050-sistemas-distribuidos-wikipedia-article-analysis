@@ -7,9 +7,12 @@ import (
 	"sync"
 	"syscall"
 
-	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
+	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
+	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
+	article "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/raw_article"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
 type Config struct {
@@ -52,48 +55,33 @@ func New(config Config) (*ColumnFilterWorker, error) {
 }
 
 func (w *ColumnFilterWorker) Run() {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	done := make(chan struct{})
+	w.handleSignals(done)
+	defer close(done)
 	var wg sync.WaitGroup
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	utils.SpawnWithWG(&wg, func() {
 		w.inputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
 			w.handleMessage(msg, ack, nack)
 		})
-	}()
+	})
 
-	<-signals
-	slog.Info("Graceful shutdown started...")
-	w.inputQueue.StopConsuming()
 	wg.Wait()
 	w.shutdown()
 }
 
-func (w *ColumnFilterWorker) handleMessage(msg middleware.Message, ack, nack func()) {
-	defer ack()
-	records, err := record.FromBytes[record.Record]([]byte(msg.Body))
-	if err != nil {
-		slog.Error("While parsing record", "err", err)
-		return
-	}
-
-	q1q2, q3q5 := logic.FilterByQuery(records)
-
-	bytesq1q2, err := record.ToBytes(q1q2)
-	if err != nil {
-		slog.Error("While serializing record", "err", err)
-		return
-	}
-	w.outputQ1ToQ2.Send(middleware.Message{ClientID: msg.ClientID, Body: string(bytesq1q2)})
-
-	bytesq3q5, err := record.ToBytes(q3q5)
-	if err != nil {
-		slog.Error("While serializing record", "err", err)
-		return
-	}
-	w.outputQ3ToQ5.Send(middleware.Message{ClientID: msg.ClientID, Body: string(bytesq3q5)})
+func (w *ColumnFilterWorker) handleSignals(done chan struct{}) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-signals:
+			slog.Info("Graceful shutdown started...")
+			w.inputQueue.StopConsuming()
+		case <-done:
+			return
+		}
+	}()
 }
 
 func (w *ColumnFilterWorker) shutdown() {
@@ -106,4 +94,103 @@ func (w *ColumnFilterWorker) shutdown() {
 	if err := w.outputQ3ToQ5.Close(); err != nil {
 		slog.Error("While closing output queue", "err", err)
 	}
+}
+
+func (w *ColumnFilterWorker) handleMessage(msg middleware.Message, ack, nack func()) {
+	switch msg.MsgCode {
+	case messages.ArticlesBatchCode:
+		if err := w.handleArticlesBatch(msg); err != nil {
+			slog.Error("While handling Articles Batch message")
+			nack()
+			return
+		}
+	case messages.EOFCode:
+		if err := w.handleEOF(msg); err != nil {
+			slog.Error("While handling EOF message")
+			nack()
+			return
+		}
+	default:
+		slog.Debug("Received unexpected inner message code")
+		nack()
+		return
+	}
+	ack()
+}
+
+func (w *ColumnFilterWorker) handleArticlesBatch(msg middleware.Message) error {
+	rawArticlesBatch, err := article.RawArticlesBatchFromBytes([]byte(msg.Body))
+	if err != nil {
+		slog.Debug("While reading Raw Articles Batch message")
+		return err
+	}
+	records := article.ArticlesBatchToRecords(*rawArticlesBatch)
+	recordsQ1ToQ2, recordsQ3ToQ5 := filterByQuery(records)
+
+	// Envio de batch de mensajes YearCandidate, para resolver querys Q1-Q2
+	q1q2Message, err := middleware.NewMessage(msg.ClientID, messages.YearCandidateCode, &recordsQ1ToQ2)
+	if err != nil {
+		slog.Debug("While creating Year Candidate Batch message", "err", err)
+		return err
+	}
+	if err := w.outputQ1ToQ2.Send(*q1q2Message); err != nil {
+		slog.Debug("While sending Year Candidate Batch message", "err", err)
+		return err
+	}
+
+	// Envio de batch de mensajes RawAbstract, para resolver querys Q3-Q5
+	q3q5Message, err := middleware.NewMessage(msg.ClientID, messages.RawAbstractCode, &recordsQ3ToQ5)
+	if err != nil {
+		slog.Debug("While creating Raw Abstract Batch message", "err", err)
+		return err
+	}
+	if err := w.outputQ3ToQ5.Send(*q3q5Message); err != nil {
+		slog.Debug("While sending Raw Abstract Batch message", "err", err)
+		return err
+	}
+
+	return nil
+}
+
+func (w *ColumnFilterWorker) handleEOF(msg middleware.Message) error {
+	eof := messages.EofMsg{}
+	eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
+	if err != nil {
+		slog.Debug("While creating EOF message", "err", err)
+		return err
+	}
+	if err := w.outputQ1ToQ2.Send(*eofMessage); err != nil {
+		slog.Debug("While sending EOF message", "err", err)
+		return err
+	}
+	if err := w.outputQ3ToQ5.Send(*eofMessage); err != nil {
+		slog.Debug("While sending EOF message", "err", err)
+		return err
+	}
+	return nil
+}
+
+func filterByQuery(records []record.Record) (generic.Batch[*messages.YearCandidate], generic.Batch[*messages.RawAbstract]) {
+	q1Toq2 := messages.NewEmptyYearCandidateBatch(len(records))
+	q3Toq5 := messages.NewEmptyRawAbstractBatch(len(records))
+
+	for _, r := range records {
+		q1Toq2.Add(&messages.YearCandidate{
+			ArticleID:    r.ArticleID,
+			DateModified: r.DateModified,
+			ImageURL:     r.Image.ContentURL,
+			InLanguage:   r.InLanguage.Identifier,
+			Name:         r.Name,
+			Sections:     r.Sections,
+			URL:          r.URL,
+		})
+		q3Toq5.Add(&messages.RawAbstract{
+			ArticleID:    r.ArticleID,
+			DateModified: r.DateModified,
+			InLanguage:   r.InLanguage.Identifier,
+			URL:          r.URL,
+			Abstract:     r.Abstract,
+		})
+	}
+	return q1Toq2, q3Toq5
 }
