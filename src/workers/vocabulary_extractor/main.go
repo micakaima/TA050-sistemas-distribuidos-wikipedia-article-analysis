@@ -7,31 +7,31 @@ import (
 	"strconv"
 
 	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
-	wcounter "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/workers/word_counter/word_counter"
+	vextractor "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/workers/vocabulary_extractor/vocabulary_extractor"
 )
 
-func loadConfig() (wcounter.WordCounterConfig, error) {
+func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
-		return wcounter.WordCounterConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_HOST")
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_HOST")
 	}
 
 	momPort, err := strconv.Atoi(os.Getenv("MOM_PORT"))
 	if err != nil {
-		return wcounter.WordCounterConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_PORT")
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_PORT")
 	}
 
 	inputQueue := os.Getenv("INPUT_QUEUE")
 	if inputQueue == "" {
-		return wcounter.WordCounterConfig{}, fmt.Errorf(errors.ConfigSetupError, "INPUT_QUEUE")
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "INPUT_QUEUE")
 	}
 
 	outputQueue := os.Getenv("OUTPUT_QUEUE")
 	if outputQueue == "" {
-		return wcounter.WordCounterConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE")
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE")
 	}
 
-	return wcounter.WordCounterConfig{
+	return vextractor.VocabularyExtractorConfig{
 		MomHost:     momHost,
 		MomPort:     momPort,
 		InputQueue:  inputQueue,
@@ -45,9 +45,9 @@ func run() int {
 		slog.Error("While loading config", "err", err)
 		return 1
 	}
-	worker, err := wcounter.New(config)
+	worker, err := vextractor.New(config)
 	if err != nil {
-		slog.Error("While initializing Word Counter", "err", err)
+		slog.Error("While initializing Vocabulary Extractor", "err", err)
 		return 1
 	}
 	worker.Run()

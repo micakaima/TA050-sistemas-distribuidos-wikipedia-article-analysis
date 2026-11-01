@@ -1,4 +1,4 @@
-package wordcounter
+package vocabularyextractor
 
 import (
 	"log/slog"
@@ -14,19 +14,19 @@ import (
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
-type WordCounterConfig struct {
+type VocabularyExtractorConfig struct {
 	MomHost     string
 	MomPort     int
 	InputQueue  string
 	OutputQueue string
 }
 
-type WordCounterWorker struct {
+type VocabularyExtractorWorker struct {
 	inputQueue  middleware.Middleware
 	outputQueue middleware.Middleware
 }
 
-func New(config WordCounterConfig) (*WordCounterWorker, error) {
+func New(config VocabularyExtractorConfig) (*VocabularyExtractorWorker, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
 	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueue, connSettings)
@@ -38,13 +38,13 @@ func New(config WordCounterConfig) (*WordCounterWorker, error) {
 		inputQueue.Close()
 		return nil, err
 	}
-	return &WordCounterWorker{
+	return &VocabularyExtractorWorker{
 		inputQueue:  inputQueue,
 		outputQueue: outputQueue,
 	}, nil
 }
 
-func (w *WordCounterWorker) Run() {
+func (w *VocabularyExtractorWorker) Run() {
 	done := make(chan struct{})
 	w.handleSignals(done)
 	defer close(done)
@@ -60,7 +60,7 @@ func (w *WordCounterWorker) Run() {
 	w.shutdown()
 }
 
-func (w *WordCounterWorker) handleSignals(done chan struct{}) {
+func (w *VocabularyExtractorWorker) handleSignals(done chan struct{}) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -74,7 +74,7 @@ func (w *WordCounterWorker) handleSignals(done chan struct{}) {
 	}()
 }
 
-func (w *WordCounterWorker) shutdown() {
+func (w *VocabularyExtractorWorker) shutdown() {
 	if err := w.inputQueue.Close(); err != nil {
 		slog.Error("While closing input queue", "err", err)
 	}
@@ -83,7 +83,7 @@ func (w *WordCounterWorker) shutdown() {
 	}
 }
 
-func (w *WordCounterWorker) handleMessage(msg middleware.Message, ack, nack func()) {
+func (w *VocabularyExtractorWorker) handleMessage(msg middleware.Message, ack, nack func()) {
 	switch msg.MsgCode {
 	case messages.RawAbstractCode:
 		if err := w.handleRawAbstract(msg); err != nil {
@@ -105,7 +105,7 @@ func (w *WordCounterWorker) handleMessage(msg middleware.Message, ack, nack func
 	ack()
 }
 
-func (w *WordCounterWorker) handleRawAbstract(msg middleware.Message) error {
+func (w *VocabularyExtractorWorker) handleRawAbstract(msg middleware.Message) error {
 	rawAbstractBatch, err := messages.RawAbstractBatchFromBytes([]byte(msg.Body))
 	if err != nil {
 		slog.Debug("While reading Raw Abstracts Batch message")
@@ -125,7 +125,7 @@ func (w *WordCounterWorker) handleRawAbstract(msg middleware.Message) error {
 	return nil
 }
 
-func (w *WordCounterWorker) handleEOF(msg middleware.Message) error {
+func (w *VocabularyExtractorWorker) handleEOF(msg middleware.Message) error {
 	eof := messages.EofMsg{}
 	eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
 	if err != nil {

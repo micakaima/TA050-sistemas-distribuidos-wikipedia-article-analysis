@@ -59,7 +59,7 @@ func run() int {
 	}
 	worker, err := swfilter.New(config)
 	if err != nil {
-		slog.Error("While initializing Word Counter", "err", err)
+		slog.Error("While initializing Stop Words Filter", "err", err)
 		return 1
 	}
 	worker.Run()
