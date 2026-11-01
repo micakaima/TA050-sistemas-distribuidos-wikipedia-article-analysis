@@ -12,6 +12,8 @@ import (
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
+
+	"github.com/bbalet/stopwords"
 )
 
 type VocabularyExtractorConfig struct {
@@ -111,9 +113,9 @@ func (w *VocabularyExtractorWorker) handleRawAbstract(msg middleware.Message) er
 		slog.Debug("While reading Raw Abstracts Batch message")
 		return err
 	}
-	vocabularies := extractVocabularies(*rawAbstractBatch)
+	cleanVocabularies := extractCleanVocabularies(*rawAbstractBatch)
 
-	vocabulariesMsg, err := middleware.NewMessage(msg.ClientID, messages.VocabularyCode, &vocabularies)
+	vocabulariesMsg, err := middleware.NewMessage(msg.ClientID, messages.VocabularyCode, &cleanVocabularies)
 	if err != nil {
 		slog.Debug("While creating Extracted Vocabulary Batch message", "err", err)
 		return err
@@ -139,27 +141,30 @@ func (w *VocabularyExtractorWorker) handleEOF(msg middleware.Message) error {
 	return nil
 }
 
-func extractVocabularies(rawAbstractBatch generic.Batch[*messages.RawAbstract]) generic.Batch[*messages.ExtractedVocabulary] {
+func extractCleanVocabularies(rawAbstractBatch generic.Batch[*messages.RawAbstract]) generic.Batch[*messages.ExtractedVocabulary] {
 	vocabularies := messages.NewEmptyExtractedVocabularyBatch(rawAbstractBatch.Len())
 	for _, abs := range rawAbstractBatch.Items {
-		absVocabulary := extractVocabulary(abs.Abstract)
+		absVocabulary := extractCleanVocabulary(abs.Abstract, abs.InLanguage)
+		cleanWordCount := len(absVocabulary)
 		vocabularies.Add(&messages.ExtractedVocabulary{
 			ArticleID:    abs.ArticleID,
 			DateModified: abs.DateModified,
 			InLanguage:   abs.InLanguage,
 			Vocabulary:   absVocabulary,
+			WordCount:    uint32(cleanWordCount),
 		})
 	}
 	return vocabularies
 }
 
-func extractVocabulary(abstract string) map[string]struct{} {
-	vocabulary := make(map[string]struct{})
+func extractCleanVocabulary(abstract string, lang string) map[string]struct{} {
+	cleanVocabulary := make(map[string]struct{})
 	for _, word := range strings.Fields(abstract) {
 		lowercaseWord := strings.ToLower(word)
-		if _, exists := vocabulary[lowercaseWord]; !exists {
-			vocabulary[lowercaseWord] = struct{}{}
+		cleanWord := stopwords.CleanString(lowercaseWord, lang, false)
+		if _, exists := cleanVocabulary[cleanWord]; !exists && len(cleanWord) > 0 && cleanWord != " " {
+			cleanVocabulary[cleanWord] = struct{}{}
 		}
 	}
-	return vocabulary
+	return cleanVocabulary
 }

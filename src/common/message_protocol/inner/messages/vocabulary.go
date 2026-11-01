@@ -11,6 +11,7 @@ type ExtractedVocabulary struct {
 	InLanguage   string
 	URL          string
 	Vocabulary   map[string]struct{}
+	WordCount    uint32
 }
 
 func (e *ExtractedVocabulary) ToBytes() ([]byte, error) {
@@ -19,6 +20,7 @@ func (e *ExtractedVocabulary) ToBytes() ([]byte, error) {
 	result = append(result, utils.SerializeString(e.InLanguage)...)
 	result = append(result, utils.SerializeString(e.URL)...)
 	result = append(result, utils.SerializeSet(e.Vocabulary)...)
+	result = append(result, utils.SerializeUint32(e.WordCount)...)
 	return result, nil
 }
 
@@ -43,12 +45,17 @@ func ExtractedVocabularyFromBytes(data []byte, offset *int) (*ExtractedVocabular
 	if err != nil {
 		return nil, err
 	}
+	wordCount, err := utils.ReadUint32FromBytes(data, offset)
+	if err != nil {
+		return nil, err
+	}
 	return &ExtractedVocabulary{
 		ArticleID:    articleID,
 		DateModified: dateModified,
 		InLanguage:   inLanguage,
 		URL:          url,
 		Vocabulary:   vocabulary,
+		WordCount:    wordCount,
 	}, nil
 }
 
