@@ -54,7 +54,7 @@ services:
       dockerfile: src/workers/column_filter/Dockerfile
     container_name: column_filter
     depends_on:
-      - gateway
+      - word_counter
       # - year_filter
     environment:
       - MOM_HOST=rabbitmq
@@ -62,6 +62,19 @@ services:
       - INPUT_QUEUE=raw_articles_queue
       - OUTPUT_QUEUE_Q1_TO_Q2=q1q2_queue
       - OUTPUT_QUEUE_Q3_TO_Q5=q3q5_queue
+
+  word_counter:
+    build:
+      context: .
+      dockerfile: src/workers/word_counter/Dockerfile
+    container_name: word_counter
+    depends_on:
+      - gateway
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE=q3q5_queue
+      - OUTPUT_QUEUE=vocabularies_queue
 
   year_filter:
     build:
