@@ -14,6 +14,7 @@ var (
 )
 
 const ClientIDHeader = "client_id"
+const MsgCodeHeader = "mcode"
 
 type Message struct {
 	ClientID uint64

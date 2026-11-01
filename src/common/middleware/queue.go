@@ -22,6 +22,7 @@ func (m *queueMiddleware) Send(msg Message) error {
 		amqp.Publishing{
 			Headers: amqp.Table{
 				ClientIDHeader: int64(msg.ClientID),
+				MsgCodeHeader:  byte(msg.MsgCode),
 			},
 			ContentType: "text/plain",
 			Body:        []byte(msg.Body),

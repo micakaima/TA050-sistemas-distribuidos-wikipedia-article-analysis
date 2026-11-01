@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	inner "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -38,13 +40,18 @@ func (m *commonMiddleware) consume(queueName string, callbackFunc func(msg Messa
 
 	for delivery := range messages {
 		var clientID uint64
+		var msgCode inner.InnerMsgCode
 		if delivery.Headers != nil {
 			if val, ok := delivery.Headers[ClientIDHeader].(int64); ok {
 				clientID = uint64(val)
 			}
+			if val, ok := delivery.Headers[MsgCodeHeader].(byte); ok {
+				msgCode = inner.InnerMsgCode(val)
+			}
 		}
 		msg := Message{
 			ClientID: clientID,
+			MsgCode:  msgCode,
 			Body:     string(delivery.Body),
 		}
 		deliveryTag := delivery.DeliveryTag
