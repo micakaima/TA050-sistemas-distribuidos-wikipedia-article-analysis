@@ -1,4 +1,4 @@
-package messageprotocol
+package querysresults
 
 import (
 	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"

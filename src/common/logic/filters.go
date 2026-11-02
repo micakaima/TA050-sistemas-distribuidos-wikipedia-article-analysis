@@ -6,6 +6,7 @@ import (
 
 	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
+	qresults "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/querys_results"
 )
 
 func FilterYearCandidates(candidates generic.Batch[*messages.YearCandidate], year int) (generic.Batch[*messages.EnglishCandidate], generic.Batch[*messages.BioCandidate]) {
@@ -35,11 +36,11 @@ func FilterYearCandidates(candidates generic.Batch[*messages.YearCandidate], yea
 	return englishCandidates, bioCandidates
 }
 
-func FilterEnglishCandidates(candidates generic.Batch[*messages.EnglishCandidate]) generic.Batch[*messages.Q1Result] {
-	results := messages.NewEmptyQ1ResultBatch(candidates.Len())
+func FilterEnglishCandidates(candidates generic.Batch[*messages.EnglishCandidate]) generic.Batch[*qresults.Q1Result] {
+	results := qresults.NewEmptyQ1ResultBatch(candidates.Len())
 	for _, candidate := range candidates.Items {
 		if candidate.InLanguage == "en" {
-			results.Add(&messages.Q1Result{ArticleID: candidate.ArticleID, DateModified: candidate.DateModified, URL: candidate.URL})
+			results.Add(&qresults.Q1Result{ArticleID: candidate.ArticleID, DateModified: candidate.DateModified, URL: candidate.URL})
 		}
 	}
 	return results

@@ -9,7 +9,8 @@ import (
 	"sync"
 
 	safeio "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/external/safe_socket"
-	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
+	utilsProto "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
+	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
 type Storage struct {
@@ -31,33 +32,18 @@ func (s *Storage) getFilePath(clientID uint64) string {
 }
 
 func (s *Storage) Write(clientID uint64, batchBytes []byte) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	filePath := s.getFilePath(clientID)
-	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		slog.Error("Error opening file for writing", "file", filePath, "error", err)
-		return err
-	}
-	defer f.Close()
-
-	lengthBytes := utils.SerializeUint32(uint32(len(batchBytes)))
-	if _, err := f.Write(lengthBytes); err != nil {
-		slog.Error("Error writing length to file", "file", filePath, "error", err)
-		return err
-	}
-	if _, err := f.Write(batchBytes); err != nil {
-		slog.Error("Error writing batch to file", "file", filePath, "error", err)
-		return err
-	}
-	return nil
+	return utils.WithLockAndReturn(&s.mu, func() error {
+		return s.writeToFile(clientID, batchBytes)
+	})
 }
 
 func (s *Storage) Read(clientID uint64) ([][]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.readFromFile(clientID)
+}
 
+func (s *Storage) readFromFile(clientID uint64) ([][]byte, error) {
 	filePath := s.getFilePath(clientID)
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -71,7 +57,7 @@ func (s *Storage) Read(clientID uint64) ([][]byte, error) {
 
 	var batches [][]byte
 	for {
-		length, err := utils.ReadUint32(f)
+		length, err := utilsProto.ReadUint32(f)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -89,6 +75,27 @@ func (s *Storage) Read(clientID uint64) ([][]byte, error) {
 
 	s.deleteFile(clientID)
 	return batches, nil
+}
+
+func (s *Storage) writeToFile(clientID uint64, batchBytes []byte) error {
+	filePath := s.getFilePath(clientID)
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		slog.Error("Error opening file for writing", "file", filePath, "error", err)
+		return err
+	}
+	defer f.Close()
+
+	lengthBytes := utilsProto.SerializeUint32(uint32(len(batchBytes)))
+	if _, err := f.Write(lengthBytes); err != nil {
+		slog.Error("Error writing length to file", "file", filePath, "error", err)
+		return err
+	}
+	if _, err := f.Write(batchBytes); err != nil {
+		slog.Error("Error writing batch to file", "file", filePath, "error", err)
+		return err
+	}
+	return nil
 }
 
 func (s *Storage) deleteFile(clientID uint64) {

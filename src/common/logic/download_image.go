@@ -10,6 +10,7 @@ import (
 
 	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
+	qresults "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/querys_results"
 )
 
 type WikiSummaryResponse struct {
@@ -32,12 +33,12 @@ func requestBytes(client *http.Client, targetUrl string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func DownloadImage(records generic.Batch[*messages.ImageCandidate]) generic.Batch[*messages.Q2Result] {
+func DownloadImage(records generic.Batch[*messages.ImageCandidate]) generic.Batch[*qresults.Q2Result] {
 	client := &http.Client{Timeout: 10 * time.Second}
-	results := messages.NewEmptyQ2ResultBatch(records.Len())
+	results := qresults.NewEmptyQ2ResultBatch(records.Len())
 
 	for _, r := range records.Items {
-		result := &messages.Q2Result{
+		result := &qresults.Q2Result{
 			ArticleID: r.ArticleID,
 			Name:      r.Name,
 			URL:       r.URL,
