@@ -69,7 +69,7 @@ services:
       dockerfile: src/workers/vocabulary_extractor/Dockerfile
     container_name: vocabulary_extractor
     depends_on:
-      - gateway
+      - year_splitter
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
@@ -77,6 +77,47 @@ services:
       - OUTPUT_QUEUE_Q3=q3_queue
       - OUTPUT_QUEUE_Q4=q4_queue
       - OUTPUT_QUEUE_Q5=q5_queue
+  
+  year_splitter:
+    build:
+      context: .
+      dockerfile: src/workers/year_splitter/Dockerfile
+    container_name: year_splitter
+    depends_on:
+      - old_articles_averager
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE=q5_queue
+      - OUTPUT_QUEUE_OLD=old_articles_queue
+      - OUTPUT_QUEUE_NEW=new_articles_queue
+  
+  old_articles_averager:
+    build:
+      context: .
+      dockerfile: src/workers/old_articles_averager/Dockerfile
+    container_name: old_articles_averager
+    depends_on:
+      - above_average_filter
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE=old_articles_queue
+      - OUTPUT_QUEUE=average_queue
+  
+  above_average_filter:
+    build:
+      context: .
+      dockerfile: src/workers/above_average_filter/Dockerfile
+    container_name: above_average_filter
+    depends_on:
+      - gateway
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE_DATA=new_articles_queue
+      - INPUT_QUEUE_AVERAGE=average_queue
+      - OUTPUT_QUEUE=results_queue
 
   year_filter:
     build:
