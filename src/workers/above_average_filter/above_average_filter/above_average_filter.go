@@ -142,26 +142,31 @@ func (w *AboveAverageFilterWorker) handleWordCount(msg middleware.Message) error
 		slog.Debug("While reading New Article Word Count Batch message")
 		return err
 	}
-	utils.WithLock(&w.lock, func() {
-		for _, wc := range wordsCount.Items {
-			w.saveWordCount(msg.ClientID, *wc)
-		}
-	})
+	for _, wc := range wordsCount.Items {
+		w.saveWordCount(msg.ClientID, *wc)
+	}
 	return nil
 }
 
 func (w *AboveAverageFilterWorker) handleEOF(msg middleware.Message) error {
 	slog.Info("Received EOF message")
-	return utils.WithLockAndReturn(&w.lock, func() error {
+
+	canSendResult := false
+	utils.WithLock(&w.lock, func() {
 		if _, exists := w.clientStates[msg.ClientID]; !exists {
 			w.clientStates[msg.ClientID] = &ClientState{}
 		}
-		w.clientStates[msg.ClientID].receivedEof = true
-		if w.clientStates[msg.ClientID].receivedAverage {
-			return w.sendQuery5Result(msg.ClientID)
+		state := w.clientStates[msg.ClientID]
+		state.receivedEof = true
+		if state.receivedAverage {
+			canSendResult = true
 		}
-		return nil
 	})
+
+	if canSendResult {
+		return w.sendQuery5Result(msg.ClientID)
+	}
+	return nil
 }
 
 func (w *AboveAverageFilterWorker) handleAverageMessage(msg middleware.Message, ack, nack func()) {
@@ -177,21 +182,27 @@ func (w *AboveAverageFilterWorker) handleAverageMessage(msg middleware.Message, 
 		return
 	}
 
+	canSendResult := false
 	utils.WithLock(&w.lock, func() {
 		if _, exists := w.clientStates[msg.ClientID]; !exists {
 			w.clientStates[msg.ClientID] = &ClientState{}
 		}
-		w.clientStates[msg.ClientID].average = oldAverage.Average
-		w.clientStates[msg.ClientID].receivedAverage = true
-		if w.clientStates[msg.ClientID].receivedEof {
-			if err := w.sendQuery5Result(msg.ClientID); err != nil {
-				slog.Error("While sending Q5 Result message", "err", err)
-				nack()
-				return
-			}
+		state := w.clientStates[msg.ClientID]
+		state.average = oldAverage.Average
+		state.receivedAverage = true
+		if state.receivedEof {
+			canSendResult = true
 		}
-		ack()
 	})
+
+	if canSendResult {
+		if err := w.sendQuery5Result(msg.ClientID); err != nil {
+			slog.Error("While sending Q5 Result message", "err", err)
+			nack()
+			return
+		}
+	}
+	ack()
 }
 
 func (w *AboveAverageFilterWorker) saveWordCount(clientID uint64, wordCount messages.NewArticleWordCount) {
