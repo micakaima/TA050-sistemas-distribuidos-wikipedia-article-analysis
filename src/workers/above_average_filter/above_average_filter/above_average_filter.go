@@ -28,9 +28,15 @@ type AboveAverageFilterWorker struct {
 	dataInputQueue    middleware.Middleware
 	averageInputQueue middleware.Middleware
 	outputQueue       middleware.Middleware
-	clientWordsCount  map[uint64][]messages.NewArticleWordCount
-	clientReceivedEOF map[uint64]bool
-	clientOldAverage  map[uint64]float64
+	clientStates      map[uint64]*ClientState
+	lock              sync.Mutex
+}
+
+type ClientState struct {
+	articlesWordCounts []messages.NewArticleWordCount
+	average            float64
+	receivedAverage    bool
+	receivedEof        bool
 }
 
 func New(config AboveAverageFilterConfig) (*AboveAverageFilterWorker, error) {
@@ -55,9 +61,8 @@ func New(config AboveAverageFilterConfig) (*AboveAverageFilterWorker, error) {
 		dataInputQueue:    dataInputQueue,
 		averageInputQueue: averageInputQueue,
 		outputQueue:       outputQueue,
-		clientWordsCount:  map[uint64][]messages.NewArticleWordCount{},
-		clientReceivedEOF: map[uint64]bool{},
-		clientOldAverage:  map[uint64]float64{},
+		clientStates:      map[uint64]*ClientState{},
+		lock:              sync.Mutex{},
 	}, nil
 }
 
@@ -137,22 +142,26 @@ func (w *AboveAverageFilterWorker) handleWordCount(msg middleware.Message) error
 		slog.Debug("While reading New Article Word Count Batch message")
 		return err
 	}
-	for _, wc := range wordsCount.Items {
-		w.saveWordCount(msg.ClientID, *wc)
-	}
+	utils.WithLock(&w.lock, func() {
+		for _, wc := range wordsCount.Items {
+			w.saveWordCount(msg.ClientID, *wc)
+		}
+	})
 	return nil
 }
 
 func (w *AboveAverageFilterWorker) handleEOF(msg middleware.Message) error {
-	if _, exists := w.clientReceivedEOF[msg.ClientID]; !exists {
-		w.clientReceivedEOF[msg.ClientID] = true
-	}
-	if _, exists := w.clientOldAverage[msg.ClientID]; exists {
-		if err := w.sendQuery5Result(msg.ClientID); err != nil {
-			return err
+	slog.Info("Received EOF message")
+	return utils.WithLockAndReturn(&w.lock, func() error {
+		if _, exists := w.clientStates[msg.ClientID]; !exists {
+			w.clientStates[msg.ClientID] = &ClientState{}
 		}
-	}
-	return nil
+		w.clientStates[msg.ClientID].receivedEof = true
+		if w.clientStates[msg.ClientID].receivedAverage {
+			return w.sendQuery5Result(msg.ClientID)
+		}
+		return nil
+	})
 }
 
 func (w *AboveAverageFilterWorker) handleAverageMessage(msg middleware.Message, ack, nack func()) {
@@ -167,50 +176,57 @@ func (w *AboveAverageFilterWorker) handleAverageMessage(msg middleware.Message, 
 		nack()
 		return
 	}
-	if _, exists := w.clientOldAverage[msg.ClientID]; !exists {
-		w.clientOldAverage[msg.ClientID] = oldAverage.Average
-	}
-	if _, exists := w.clientReceivedEOF[msg.ClientID]; exists {
-		if err := w.sendQuery5Result(msg.ClientID); err != nil {
-			slog.Error("While sending Q5 Result message", "err", err)
-			nack()
-			return
+
+	utils.WithLock(&w.lock, func() {
+		if _, exists := w.clientStates[msg.ClientID]; !exists {
+			w.clientStates[msg.ClientID] = &ClientState{}
 		}
-	}
-	ack()
+		w.clientStates[msg.ClientID].average = oldAverage.Average
+		w.clientStates[msg.ClientID].receivedAverage = true
+		if w.clientStates[msg.ClientID].receivedEof {
+			if err := w.sendQuery5Result(msg.ClientID); err != nil {
+				slog.Error("While sending Q5 Result message", "err", err)
+				nack()
+				return
+			}
+		}
+		ack()
+	})
 }
 
 func (w *AboveAverageFilterWorker) saveWordCount(clientID uint64, wordCount messages.NewArticleWordCount) {
-	if _, exists := w.clientWordsCount[clientID]; !exists {
-		w.clientWordsCount[clientID] = []messages.NewArticleWordCount{}
-	}
-	w.clientWordsCount[clientID] = append(w.clientWordsCount[clientID], messages.NewArticleWordCount{
-		ArticleID: wordCount.ArticleID,
-		URL:       wordCount.URL,
-		WordCount: wordCount.WordCount,
+	utils.WithLock(&w.lock, func() {
+		if _, exists := w.clientStates[clientID]; !exists {
+			w.clientStates[clientID] = &ClientState{}
+		}
+		clientState := w.clientStates[clientID]
+		clientState.articlesWordCounts = append(clientState.articlesWordCounts, messages.NewArticleWordCount{
+			ArticleID: wordCount.ArticleID,
+			URL:       wordCount.URL,
+			WordCount: wordCount.WordCount,
+		})
 	})
 }
 
 func (w *AboveAverageFilterWorker) filterAboveAverage(clientID uint64) (generic.Batch[*qresult.AboveAverageArticle], error) {
 	aboveAverage := qresult.NewEmptyAboveAverageArticleBatch(0)
-	wordCounts, exists := w.clientWordsCount[clientID]
-	if !exists {
-		return aboveAverage, fmt.Errorf(errors.UnknownClientID)
-	}
-	average, exists := w.clientOldAverage[clientID]
-	if !exists {
-		return aboveAverage, fmt.Errorf(errors.UnknownClientID)
-	}
-	for _, wc := range wordCounts {
-		if float64(wc.WordCount) > average {
-			aboveAverage.Add(&qresult.AboveAverageArticle{
-				ArticleID: wc.ArticleID,
-				URL:       wc.URL,
-				WordCount: wc.WordCount,
-			})
+	err := utils.WithLockAndReturn(&w.lock, func() error {
+		clientState, exists := w.clientStates[clientID]
+		if !exists {
+			return fmt.Errorf(errors.UnknownClientID)
 		}
-	}
-	return aboveAverage, nil
+		for _, wc := range clientState.articlesWordCounts {
+			if float64(wc.WordCount) > clientState.average {
+				aboveAverage.Add(&qresult.AboveAverageArticle{
+					ArticleID: wc.ArticleID,
+					URL:       wc.URL,
+					WordCount: wc.WordCount,
+				})
+			}
+		}
+		return nil
+	})
+	return aboveAverage, err
 }
 
 func (w *AboveAverageFilterWorker) sendQuery5Result(clientID uint64) error {
@@ -231,8 +247,8 @@ func (w *AboveAverageFilterWorker) sendQuery5Result(clientID uint64) error {
 		return err
 	}
 
-	delete(w.clientWordsCount, clientID)
-	delete(w.clientOldAverage, clientID)
-	delete(w.clientReceivedEOF, clientID)
+	utils.WithLock(&w.lock, func() {
+		delete(w.clientStates, clientID)
+	})
 	return nil
 }

@@ -158,6 +158,7 @@ func (w *VocabularyExtractorWorker) handleRawAbstract(msg middleware.Message) er
 }
 
 func (w *VocabularyExtractorWorker) handleEOF(msg middleware.Message) error {
+	slog.Info("Received EOF message")
 	eof := messages.EofMsg{}
 	eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
 	if err != nil {

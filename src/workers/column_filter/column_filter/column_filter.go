@@ -153,6 +153,7 @@ func (w *ColumnFilterWorker) handleArticlesBatch(msg middleware.Message) error {
 }
 
 func (w *ColumnFilterWorker) handleEOF(msg middleware.Message) error {
+	slog.Info("Received EOF message")
 	eof := messages.EofMsg{}
 	eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
 	if err != nil {

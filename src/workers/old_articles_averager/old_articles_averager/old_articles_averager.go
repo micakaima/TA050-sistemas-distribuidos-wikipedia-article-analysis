@@ -1,7 +1,6 @@
 package oldarticlesaverager
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -11,7 +10,6 @@ import (
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
-	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
 type OldArticlesAveragerConfig struct {
@@ -22,10 +20,14 @@ type OldArticlesAveragerConfig struct {
 }
 
 type OldArticlesAveragerWorker struct {
-	inputQueue          middleware.Middleware
-	outputQueue         middleware.Middleware
-	clientWordsSum      map[uint64]uint32
-	clientArticlesCount map[uint64]uint32
+	inputQueue   middleware.Middleware
+	outputQueue  middleware.Middleware
+	clientStates map[uint64]*ClientState
+}
+
+type ClientState struct {
+	totalWords uint32
+	totalCount uint32
 }
 
 func New(config OldArticlesAveragerConfig) (*OldArticlesAveragerWorker, error) {
@@ -41,10 +43,9 @@ func New(config OldArticlesAveragerConfig) (*OldArticlesAveragerWorker, error) {
 		return nil, err
 	}
 	return &OldArticlesAveragerWorker{
-		inputQueue:          inputQueue,
-		outputQueue:         outputQueue,
-		clientWordsSum:      map[uint64]uint32{},
-		clientArticlesCount: map[uint64]uint32{},
+		inputQueue:   inputQueue,
+		outputQueue:  outputQueue,
+		clientStates: map[uint64]*ClientState{},
 	}, nil
 }
 
@@ -122,11 +123,8 @@ func (w *OldArticlesAveragerWorker) handleWordCount(msg middleware.Message) erro
 }
 
 func (w *OldArticlesAveragerWorker) handleEOF(msg middleware.Message) error {
-	clientAverage, err := w.calculateAverage(msg.ClientID)
-	if err != nil {
-		slog.Debug("While calculating average")
-		return err
-	}
+	slog.Info("Received EOF message")
+	clientAverage := w.calculateAverage(msg.ClientID)
 
 	average := messages.OldAverage{Average: clientAverage}
 	averageMsg, err := middleware.NewMessage(msg.ClientID, messages.AverageCode, &average)
@@ -139,31 +137,22 @@ func (w *OldArticlesAveragerWorker) handleEOF(msg middleware.Message) error {
 		return err
 	}
 
-	delete(w.clientWordsSum, msg.ClientID)
-	delete(w.clientArticlesCount, msg.ClientID)
-
+	delete(w.clientStates, msg.ClientID)
 	return nil
 }
 
 func (w *OldArticlesAveragerWorker) saveWordCount(clientID uint64, wordCount messages.OldArticleWordCount) {
-	if _, exists := w.clientWordsSum[clientID]; !exists {
-		w.clientWordsSum[clientID] = 0
+	if _, exists := w.clientStates[clientID]; !exists {
+		w.clientStates[clientID] = &ClientState{}
 	}
-	if _, exists := w.clientArticlesCount[clientID]; !exists {
-		w.clientArticlesCount[clientID] = 0
-	}
-	w.clientWordsSum[clientID] += wordCount.WordCount
-	w.clientArticlesCount[clientID]++
+	w.clientStates[clientID].totalWords += wordCount.WordCount
+	w.clientStates[clientID].totalCount++
 }
 
-func (w *OldArticlesAveragerWorker) calculateAverage(clientID uint64) (float64, error) {
-	wordsSum, exists := w.clientWordsSum[clientID]
+func (w *OldArticlesAveragerWorker) calculateAverage(clientID uint64) float64 {
+	clientState, exists := w.clientStates[clientID]
 	if !exists {
-		return 0, fmt.Errorf(errors.UnknownClientID)
+		return 0
 	}
-	articlesCount, exists := w.clientArticlesCount[clientID]
-	if !exists {
-		return 0, fmt.Errorf(errors.UnknownClientID)
-	}
-	return float64(wordsSum) / float64(articlesCount), nil
+	return float64(clientState.totalWords) / float64(clientState.totalCount)
 }
