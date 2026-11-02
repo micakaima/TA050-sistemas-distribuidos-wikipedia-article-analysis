@@ -32,6 +32,13 @@ func NewClientRegistry() ClientRegistry {
 	}
 }
 
+func (registry *ClientRegistry) Get(id uint64) (ClientState, bool) {
+	registry.mutex.Lock()
+	defer registry.mutex.Unlock()
+	client, ok := registry.clients[id]
+	return client, ok
+}
+
 func (registry *ClientRegistry) Add(client ClientState) {
 	registry.mutex.Lock()
 	defer registry.mutex.Unlock()

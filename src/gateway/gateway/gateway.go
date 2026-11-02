@@ -208,25 +208,22 @@ func (gateway *Gateway) handleEOF(client clientregistry.ClientState) error {
 }
 
 func (gateway *Gateway) handleClientResponse(msg middleware.Message, ack func(), nack func()) {
-	gateway.registry.WithLock(func(clients map[uint64]clientregistry.ClientState) {
-		clientState, ok := clients[msg.ClientID]
-		if !ok {
-			slog.Warn("No client is target for this message")
-			nack()
-			return
-		}
-		switch msg.MsgCode {
-		case messages.ResultCode:
-			gateway.handleQueryResult(msg, clientState, ack, nack)
+	clientState, ok := gateway.registry.Get(msg.ClientID)
+	if !ok {
+		slog.Warn("No client is target for this message")
+		nack()
+		return
+	}
 
-		case messages.EOFCode:
-			gateway.handleResultEOF(msg, clientState, ack, nack)
-
-		default:
-			slog.Debug("Received unexpected inner message code")
-			nack()
-		}
-	})
+	switch msg.MsgCode {
+	case messages.ResultCode:
+		gateway.handleQueryResult(msg, clientState, ack, nack)
+	case messages.EOFCode:
+		gateway.handleResultEOF(msg, clientState, ack, nack)
+	default:
+		slog.Debug("Received unexpected inner message code")
+		nack()
+	}
 }
 
 func (gateway *Gateway) handleQueryResult(msg middleware.Message, clientState clientregistry.ClientState, ack func(), nack func()) {
