@@ -23,6 +23,10 @@ func (b *Batch[T]) Add(item T) {
 	b.Items = append(b.Items, item)
 }
 
+func (b *Batch[T]) Merge(other Batch[T]) {
+	b.Items = append(b.Items, other.Items...)
+}
+
 func (b *Batch[T]) Len() int {
 	return len(b.Items)
 }

@@ -35,12 +35,18 @@ func loadConfig() (aggregator.Config, error) {
 		return aggregator.Config{}, errors.New("OUTPUT_QUEUE environment variable is required")
 	}
 
+	storageDir := os.Getenv("STORAGE_DIR")
+	if storageDir == "" {
+		return aggregator.Config{}, errors.New("STORAGE_DIR environment variable is required")
+	}
+
 	return aggregator.Config{
 		MomHost:      momHost,
 		MomPort:      momPort,
 		Q1InputQueue: q1InputQueue,
 		Q2InputQueue: q2InputQueue,
 		OutputQueue:  outputQueue,
+		StorageDir:   storageDir,
 	}, nil
 }
 

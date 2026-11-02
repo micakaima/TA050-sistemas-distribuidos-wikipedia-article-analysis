@@ -20,20 +20,21 @@ type Config struct {
 	Q1InputQueue string
 	Q2InputQueue string
 	OutputQueue  string
+	StorageDir   string
 }
 
 type clientState struct {
-	q1Results map[string]*messages.Q1Result
-	q2Results map[string]*messages.Q2Result
 	q1Done    bool
 	q2Done    bool
 	finalSent bool
 }
 
 type Worker struct {
-	q1Input middleware.Middleware
-	q2Input middleware.Middleware
-	output  middleware.Middleware
+	q1Input   middleware.Middleware
+	q2Input   middleware.Middleware
+	output    middleware.Middleware
+	q1Storage *Storage
+	q2Storage *Storage
 
 	mu      sync.Mutex
 	clients map[uint64]*clientState
@@ -59,10 +60,12 @@ func New(config Config) (*Worker, error) {
 	}
 
 	return &Worker{
-		q1Input: q1Input,
-		q2Input: q2Input,
-		output:  output,
-		clients: make(map[uint64]*clientState),
+		q1Input:   q1Input,
+		q2Input:   q2Input,
+		output:    output,
+		q1Storage: NewStorage("q1", config.StorageDir),
+		q2Storage: NewStorage("q2", config.StorageDir),
+		clients:   make(map[uint64]*clientState),
 	}, nil
 }
 
@@ -129,12 +132,17 @@ func (w *Worker) handleQ1(msg middleware.Message, ack, nack func()) {
 		nack()
 		return
 	}
-	w.mu.Lock()
-	state := w.getClient(msg.ClientID)
-	for _, result := range batch.Items {
-		state.q1Results[result.ArticleID] = result
+	batchBytes, err := batch.ToBytes()
+	if err != nil {
+		slog.Error("While serializing Q1 results", "err", err)
+		nack()
+		return
 	}
-	w.mu.Unlock()
+	if err := w.q1Storage.Write(msg.ClientID, batchBytes); err != nil {
+		slog.Error("While storing Q1 results", "err", err)
+		nack()
+		return
+	}
 	ack()
 }
 
@@ -159,22 +167,24 @@ func (w *Worker) handleQ2(msg middleware.Message, ack, nack func()) {
 		nack()
 		return
 	}
-	w.mu.Lock()
-	state := w.getClient(msg.ClientID)
-	for _, result := range batch.Items {
-		state.q2Results[result.ArticleID] = result
+	batchBytes, err := batch.ToBytes()
+	if err != nil {
+		slog.Error("While serializing Q2 results", "err", err)
+		nack()
+		return
 	}
-	w.mu.Unlock()
+	if err := w.q2Storage.Write(msg.ClientID, batchBytes); err != nil {
+		slog.Error("While storing Q2 results", "err", err)
+		nack()
+		return
+	}
 	ack()
 }
 
 func (w *Worker) getClient(clientID uint64) *clientState {
 	state, ok := w.clients[clientID]
 	if !ok {
-		state = &clientState{
-			q1Results: make(map[string]*messages.Q1Result),
-			q2Results: make(map[string]*messages.Q2Result),
-		}
+		state = &clientState{}
 		w.clients[clientID] = state
 	}
 	return state
@@ -182,39 +192,63 @@ func (w *Worker) getClient(clientID uint64) *clientState {
 
 func (w *Worker) finishQ1(clientID uint64) error {
 	w.mu.Lock()
-	defer w.mu.Unlock()
 	state := w.getClient(clientID)
 	if state.q1Done {
+		w.mu.Unlock()
 		return w.finishClientIfDone(clientID, state)
 	}
+	w.mu.Unlock()
 
-	batch := generic.NewEmptyBatch[*messages.Q1Result](len(state.q1Results))
-	for _, result := range state.q1Results {
-		batch.Add(result)
-	}
-	if err := w.publishQueryResult(clientID, qresults.Q1Code, &batch); err != nil {
+	batchBytes, err := w.q1Storage.Read(clientID)
+	if err != nil {
 		return err
 	}
+	resultBatch, err := messages.NewEmptyQ1ResultBatch(len(batchBytes))
+	for _, b := range batchBytes {
+		result, err := messages.Q1ResultBatchFromBytes(b)
+		if err != nil {
+			return err
+		}
+		resultBatch.Merge(*result)
+	}
+
+	if err := w.publishQueryResult(clientID, qresults.Q1Code, &resultBatch); err != nil {
+		return err
+	}
+	w.mu.Lock()
 	state.q1Done = true
+	w.mu.Unlock()
 	return w.finishClientIfDone(clientID, state)
 }
 
 func (w *Worker) finishQ2(clientID uint64) error {
 	w.mu.Lock()
-	defer w.mu.Unlock()
 	state := w.getClient(clientID)
 	if state.q2Done {
+		w.mu.Unlock()
 		return w.finishClientIfDone(clientID, state)
 	}
+	w.mu.Unlock()
 
-	batch := generic.NewEmptyBatch[*messages.Q2Result](len(state.q2Results))
-	for _, result := range state.q2Results {
-		batch.Add(result)
-	}
-	if err := w.publishQueryResult(clientID, qresults.Q2Code, &batch); err != nil {
+	batchBytes, err := w.q2Storage.Read(clientID)
+	if err != nil {
 		return err
 	}
+	resultBatch, err := messages.NewEmptyQ2ResultBatch(len(batchBytes))
+	for _, b := range batchBytes {
+		result, err := messages.Q2ResultBatchFromBytes(b)
+		if err != nil {
+			return err
+		}
+		resultBatch.Merge(*result)
+	}
+
+	if err := w.publishQueryResult(clientID, qresults.Q2Code, &resultBatch); err != nil {
+		return err
+	}
+	w.mu.Lock()
 	state.q2Done = true
+	w.mu.Unlock()
 	return w.finishClientIfDone(clientID, state)
 }
 
@@ -243,18 +277,23 @@ func (w *Worker) publishQueryResult(clientID uint64, queryCode qresults.QueryRes
 }
 
 func (w *Worker) finishClientIfDone(clientID uint64, state *clientState) error {
+	w.mu.Lock()
 	if !state.q1Done || !state.q2Done || state.finalSent {
+		w.mu.Unlock()
 		return nil
 	}
+	state.finalSent = true
+	delete(w.clients, clientID)
+	w.mu.Unlock()
+
 	message := middleware.Message{
 		ClientID: clientID,
 		MsgCode:  messages.EOFCode,
 		Body:     string([]byte{}),
 	}
 	if err := w.output.Send(message); err != nil {
-		return fmt.Errorf("sending final EOF: %w", err)
+		return err
 	}
-	state.finalSent = true
-	delete(w.clients, clientID)
+
 	return nil
 }
