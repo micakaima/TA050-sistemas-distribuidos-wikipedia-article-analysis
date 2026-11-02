@@ -8,6 +8,9 @@ const (
 	RawAbstractCode
 	VocabularyCode
 	WordCountCode
+	OldArticleCountCode
+	NewArticleCountCode
+	AverageCode
 	EOFCode
 	ResultCode
 	EnglishCandidateCode

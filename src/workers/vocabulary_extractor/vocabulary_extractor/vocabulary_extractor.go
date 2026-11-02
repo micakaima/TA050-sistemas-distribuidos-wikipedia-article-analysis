@@ -16,6 +16,8 @@ import (
 	"github.com/bbalet/stopwords"
 )
 
+const PUNCTUATION_SYMBOLS = "-.,():;!?[]{}'\""
+
 type VocabularyExtractorConfig struct {
 	MomHost       string
 	MomPort       int
@@ -186,6 +188,7 @@ func extractCleanVocabularies(rawAbstractBatch generic.Batch[*messages.RawAbstra
 			ArticleID:    abs.ArticleID,
 			DateModified: abs.DateModified,
 			InLanguage:   abs.InLanguage,
+			URL:          abs.URL,
 			Vocabulary:   absVocabulary,
 			WordCount:    uint32(cleanWordCount),
 		})
@@ -197,7 +200,7 @@ func extractCleanVocabulary(abstract string, lang string) map[string]struct{} {
 	cleanVocabulary := make(map[string]struct{})
 	for _, word := range strings.Fields(abstract) {
 		lowercaseWord := strings.ToLower(word)
-		cleanWord := stopwords.CleanString(lowercaseWord, lang, false)
+		cleanWord := strings.Trim(stopwords.CleanString(lowercaseWord, lang, false), PUNCTUATION_SYMBOLS)
 		if _, exists := cleanVocabulary[cleanWord]; !exists && len(cleanWord) > 0 && cleanWord != " " {
 			cleanVocabulary[cleanWord] = struct{}{}
 		}

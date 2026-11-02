@@ -5,12 +5,13 @@ import (
 	"os"
 	"path/filepath"
 
+	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
 )
 
 // Representa el resultado final de la query 5. Implementa la interfaz WritableResult.
 type Q5Result struct {
-	ResultArticles []AboveAverageArticle
+	ResultArticles generic.Batch[*AboveAverageArticle]
 }
 
 // Representa un artículo escrito a partir del 2021 cuya cant. de palabras en el abstract es
@@ -52,9 +53,21 @@ func AboveAverageArticleFromBytes(data []byte, offset *int) (*AboveAverageArticl
 	}, nil
 }
 
+func NewEmptyAboveAverageArticleBatch(len int) generic.Batch[*AboveAverageArticle] {
+	return generic.NewEmptyBatch[*AboveAverageArticle](len)
+}
+
+func AboveAverageArticleBatchFromBytes(data []byte) (*generic.Batch[*AboveAverageArticle], error) {
+	batch, err := generic.BatchFromBytes(data, AboveAverageArticleFromBytes)
+	if err != nil {
+		return nil, err
+	}
+	return &batch, nil
+}
+
 func (queryResult *Q5Result) ToBytes() ([]byte, error) {
-	result := utils.SerializeUint32(uint32(len(queryResult.ResultArticles)))
-	for _, article := range queryResult.ResultArticles {
+	result := utils.SerializeUint32(uint32(queryResult.ResultArticles.Len()))
+	for _, article := range queryResult.ResultArticles.Items {
 		articleBytes, err := article.ToBytes()
 		if err != nil {
 			return nil, err
@@ -71,13 +84,13 @@ func Q5ResultFromBytes(data []byte) (*Q5Result, error) {
 		return nil, err
 	}
 
-	articles := []AboveAverageArticle{}
+	articles := NewEmptyAboveAverageArticleBatch(int(numArticles))
 	for range numArticles {
 		article, err := AboveAverageArticleFromBytes(data, &offset)
 		if err != nil {
 			return nil, err
 		}
-		articles = append(articles, *article)
+		articles.Add(article)
 	}
 	q5Result := Q5Result{ResultArticles: articles}
 	return &q5Result, nil
@@ -94,7 +107,7 @@ func (queryResult *Q5Result) WriteToFile(path string) error {
 		return err
 	}
 	defer file.Close()
-	for _, article := range queryResult.ResultArticles {
+	for _, article := range queryResult.ResultArticles.Items {
 		if _, err := file.WriteString(article.ToRow()); err != nil {
 			return err
 		}
