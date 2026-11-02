@@ -8,8 +8,8 @@ import (
 	"syscall"
 
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
+	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
-	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
 )
 
 type Config struct {
@@ -64,21 +64,31 @@ func (w *EnglishFilterWorker) Run() {
 }
 
 func (w *EnglishFilterWorker) handleMessage(msg middleware.Message, ack, nack func()) {
-	defer ack()
-	records, err := record.FromBytes[record.EnglishCandidate]([]byte(msg.Body))
-	if err != nil {
-		slog.Error("While parsing record", "err", err)
+	switch msg.MsgCode {
+	case messages.EnglishCandidateCode:
+		batch, err := messages.EnglishCandidateBatchFromBytes([]byte(msg.Body))
+		if err != nil {
+			nack()
+			return
+		}
+		result := logic.FilterEnglishCandidates(*batch)
+		resultMessage, err := middleware.NewMessage(msg.ClientID, messages.Q1ResultCode, &result)
+		if err != nil || w.outputQueue.Send(*resultMessage) != nil {
+			nack()
+			return
+		}
+	case messages.EOFCode:
+		eof := messages.EofMsg{}
+		eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
+		if err != nil || w.outputQueue.Send(*eofMessage) != nil {
+			nack()
+			return
+		}
+	default:
+		nack()
 		return
 	}
-
-	result := logic.FilterByEnglish(records)
-
-	bytes, err := record.ToBytes(result)
-	if err != nil {
-		slog.Error("While serializing record", "err", err)
-		return
-	}
-	w.outputQueue.Send(middleware.Message{ClientID: msg.ClientID, Body: string(bytes)})
+	ack()
 }
 
 func (w *EnglishFilterWorker) shutdown() {

@@ -10,4 +10,9 @@ const (
 	WordCountCode
 	EOFCode
 	ResultCode
+	EnglishCandidateCode
+	BioCandidateCode
+	ImageCandidateCode
+	Q1ResultCode
+	Q2ResultCode
 )

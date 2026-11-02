@@ -8,8 +8,8 @@ import (
 	"syscall"
 
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
+	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
-	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
 )
 
 type Config struct {
@@ -70,28 +70,57 @@ func (w *YearFilterWorker) Run() {
 }
 
 func (w *YearFilterWorker) handleMessage(msg middleware.Message, ack, nack func()) {
-	defer ack()
-	records, err := record.FromBytes[record.YearCandidate]([]byte(msg.Body))
-	if err != nil {
-		slog.Error("While parsing record", "err", err)
+	switch msg.MsgCode {
+	case messages.YearCandidateCode:
+		if err := w.handleYearCandidates(msg); err != nil {
+			slog.Error("While handling YearCandidate batch", "err", err)
+			nack()
+			return
+		}
+	case messages.EOFCode:
+		if err := w.handleEOF(msg); err != nil {
+			slog.Error("While handling EOF", "err", err)
+			nack()
+			return
+		}
+	default:
+		slog.Debug("Received unexpected inner message code", "code", msg.MsgCode)
+		nack()
 		return
 	}
+	ack()
+}
 
-	enCandidates, bioCandidates := logic.FilterByYear(records, w.year)
-
-	bytesEn, err := record.ToBytes(enCandidates)
+func (w *YearFilterWorker) handleYearCandidates(msg middleware.Message) error {
+	batch, err := messages.YearCandidateBatchFromBytes([]byte(msg.Body))
 	if err != nil {
-		slog.Error("While serializing record", "err", err)
-		return
+		return err
 	}
-	w.outputExchange.SendToKey(middleware.Message{ClientID: msg.ClientID, Body: string(bytesEn)}, w.routingKeys[0])
 
-	bytesBio, err := record.ToBytes(bioCandidates)
+	englishCandidates, bioCandidates := logic.FilterYearCandidates(*batch, w.year)
+
+	englishMessage, err := middleware.NewMessage(msg.ClientID, messages.EnglishCandidateCode, &englishCandidates)
 	if err != nil {
-		slog.Error("While serializing record", "err", err)
-		return
+		return err
 	}
-	w.outputExchange.SendToKey(middleware.Message{ClientID: msg.ClientID, Body: string(bytesBio)}, w.routingKeys[1])
+	if err := w.outputExchange.SendToKey(*englishMessage, w.routingKeys[0]); err != nil {
+		return err
+	}
+
+	bioMessage, err := middleware.NewMessage(msg.ClientID, messages.BioCandidateCode, &bioCandidates)
+	if err != nil {
+		return err
+	}
+	return w.outputExchange.SendToKey(*bioMessage, w.routingKeys[1])
+}
+
+func (w *YearFilterWorker) handleEOF(msg middleware.Message) error {
+	eof := messages.EofMsg{}
+	eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
+	if err != nil {
+		return err
+	}
+	return w.outputExchange.Send(*eofMessage)
 }
 
 func (w *YearFilterWorker) shutdown() {

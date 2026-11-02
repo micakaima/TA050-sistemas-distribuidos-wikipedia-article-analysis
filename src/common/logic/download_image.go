@@ -8,7 +8,8 @@ import (
 	"net/url"
 	"time"
 
-	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/record"
+	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
+	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 )
 
 type WikiSummaryResponse struct {
@@ -31,19 +32,19 @@ func requestBytes(client *http.Client, targetUrl string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func DownloadImage(records []record.BioMetadata) []record.Q2Result {
+func DownloadImage(records generic.Batch[*messages.ImageCandidate]) generic.Batch[*messages.Q2Result] {
 	client := &http.Client{Timeout: 10 * time.Second}
-	results := make([]record.Q2Result, 0, len(records))
+	results := messages.NewEmptyQ2ResultBatch(records.Len())
 
-	for _, r := range records {
-		result := record.Q2Result{
+	for _, r := range records.Items {
+		result := &messages.Q2Result{
 			ArticleID: r.ArticleID,
 			Name:      r.Name,
 			URL:       r.URL,
 		}
 		if r.ArticleID == "" {
 			result.Error = "missing identifier"
-			results = append(results, result)
+			results.Add(result)
 			continue
 		}
 
@@ -51,7 +52,7 @@ func DownloadImage(records []record.BioMetadata) []record.Q2Result {
 		bodyBytes, err := requestBytes(client, apiURL)
 		if err != nil {
 			result.Error = "API request failed: " + err.Error()
-			results = append(results, result)
+			results.Add(result)
 			continue
 		}
 
@@ -59,26 +60,26 @@ func DownloadImage(records []record.BioMetadata) []record.Q2Result {
 
 		if err := json.Unmarshal(bodyBytes, &summary); err != nil {
 			result.Error = "JSON unmarshal failed: " + err.Error()
-			results = append(results, result)
+			results.Add(result)
 			continue
 		}
 
 		if summary.Thumbnail == nil || summary.Thumbnail.Source == "" {
 			result.Error = "no thumbnail found"
-			results = append(results, result)
+			results.Add(result)
 			continue
 		}
 
 		imageBytes, err := requestBytes(client, summary.Thumbnail.Source)
 		if err != nil {
 			result.Error = "image download failed: " + err.Error()
-			results = append(results, result)
+			results.Add(result)
 			continue
 		}
 
 		result.ImageBytes = imageBytes
 		result.Error = ""
-		results = append(results, result)
+		results.Add(result)
 	}
 	return results
 }

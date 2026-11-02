@@ -25,52 +25,6 @@ type Record struct {
 	URL      string `parquet:"url"`
 }
 
-type YearCandidate struct {
-	ArticleID    string
-	DateModified int64
-	ImageURL     string
-	InLanguage   string
-	Name         string
-	Sections     string
-	URL          string
-}
-
-type EnglishCandidate struct {
-	ArticleID    string
-	DateModified int64
-	InLanguage   string
-	URL          string
-}
-
-type BioCandidate struct {
-	ArticleID string
-	ImageURL  string
-	Name      string
-	Sections  string
-	URL       string
-}
-
-type BioMetadata struct {
-	ArticleID string
-	ImageURL  string
-	Name      string
-	URL       string
-}
-
-type Q1Result struct {
-	ArticleID    string
-	DateModified int64
-	URL          string
-}
-
-type Q2Result struct {
-	ArticleID  string
-	Name       string
-	URL        string
-	ImageBytes []byte
-	Error      string
-}
-
 func ParseParquetBatchToRecords(batch []byte) ([]Record, error) {
 	reader := parquet.NewGenericReader[Record](bytes.NewReader(batch))
 	defer reader.Close()
