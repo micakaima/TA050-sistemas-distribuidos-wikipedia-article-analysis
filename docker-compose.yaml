@@ -55,7 +55,7 @@ services:
     container_name: column_filter
     depends_on:
       - vocabulary_extractor
-      # - year_filter
+      - year_filter
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
@@ -141,7 +141,7 @@ services:
       dockerfile: src/workers/english_filter/Dockerfile
     container_name: english_filter
     depends_on:
-      - gateway
+      - result_aggregator
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
@@ -155,7 +155,7 @@ services:
       dockerfile: src/workers/bio_filter/Dockerfile
     container_name: bio_filter
     depends_on:
-      - gateway
+      - image_downloader
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
@@ -169,9 +169,23 @@ services:
       dockerfile: src/workers/image_downloader/Dockerfile
     container_name: image_downloader
     depends_on:
-      - gateway
+      - result_aggregator
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - INPUT_QUEUE=image_download_queue
       - OUTPUT_QUEUE=q2_results_queue
+
+  result_aggregator:
+    build:
+      context: .
+      dockerfile: src/workers/result_aggregator/Dockerfile
+    container_name: result_aggregator
+    depends_on:
+      - gateway
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - Q1_INPUT_QUEUE=q1_results_queue
+      - Q2_INPUT_QUEUE=q2_results_queue
+      - OUTPUT_QUEUE=results_queue
