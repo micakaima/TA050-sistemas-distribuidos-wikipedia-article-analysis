@@ -1,4 +1,4 @@
-package result_aggregator
+package aggregator
 
 import (
 	"fmt"

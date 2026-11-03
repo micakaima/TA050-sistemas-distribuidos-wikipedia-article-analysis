@@ -14,14 +14,7 @@ import (
 	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
-type Logic[T any] struct {
-	DeserializeQueryResult  func([]byte) (generic.Batch[T], error)
-	NewEmptyBatch           func(int) generic.Batch[T]
-	DeserializeArticleBatch func([]byte) (*generic.Batch[T], error)
-	BuildQueryResult        func(generic.Batch[T]) *qresults.QueryResult
-}
-
-type Config[T any] struct {
+type Config[T generic.SerializableMessage] struct {
 	MomHost         string
 	MomPort         int
 	InputQueue      string
@@ -30,22 +23,22 @@ type Config[T any] struct {
 	StorageName     string
 	QueryCode       qresults.QueryResultCode
 	ExpectedMsgCode messages.InnerMsgCode
-	Logic           Logic[T]
+	Handler         qresults.QueryResultHandler[T]
 }
 
-type Aggregator[T any] struct {
+type Aggregator[T generic.SerializableMessage] struct {
 	inputQueue      middleware.Middleware
 	outputQueue     middleware.Middleware
 	storage         *Storage
 	queryCode       qresults.QueryResultCode
 	expectedMsgCode messages.InnerMsgCode
-	logic           Logic[T]
+	handler         qresults.QueryResultHandler[T]
 
 	mu         sync.Mutex
 	clientDone map[uint64]bool
 }
 
-func New[T any](config Config[T]) (*Aggregator[T], error) {
+func New[T generic.SerializableMessage](config Config[T]) (*Aggregator[T], error) {
 	settings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
 	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueue, settings)
@@ -65,7 +58,7 @@ func New[T any](config Config[T]) (*Aggregator[T], error) {
 		storage:         NewStorage(config.StorageName, config.StorageDir),
 		queryCode:       config.QueryCode,
 		expectedMsgCode: config.ExpectedMsgCode,
-		logic:           config.Logic,
+		handler:         config.Handler,
 		clientDone:      make(map[uint64]bool),
 	}, nil
 }
@@ -113,7 +106,7 @@ func (w *Aggregator[T]) handleMessage(msg middleware.Message, ack, nack func()) 
 		return
 	}
 
-	result, err := w.logic.DeserializeQueryResult([]byte(msg.Body))
+	result, err := w.handler.DeserializeQueryResult([]byte(msg.Body))
 	if err != nil {
 		slog.Error("While parsing results", "err", err)
 		nack()
@@ -149,15 +142,15 @@ func (w *Aggregator[T]) finish(clientID uint64) error {
 	if err != nil {
 		return err
 	}
-	resultBatch := w.logic.NewEmptyBatch(0)
+	resultBatch := w.handler.NewEmptyBatch(0)
 	for _, b := range batchBytes {
-		result, err := w.logic.DeserializeArticleBatch(b)
+		result, err := w.handler.DeserializeArticleBatch(b)
 		if err != nil {
 			return err
 		}
 		resultBatch.Merge(*result)
 	}
-	finalResult := w.logic.BuildQueryResult(resultBatch)
+	finalResult := w.handler.BuildQueryResult(resultBatch)
 
 	if err := w.publishQueryResult(clientID, finalResult); err != nil {
 		return err

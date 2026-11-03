@@ -7,38 +7,10 @@ import (
 	"strconv"
 
 	aggregator "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic/aggregator"
-	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	qresults "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/querys_results"
 )
 
-func buildQ1Result(batch generic.Batch[*qresults.English2020Article]) *qresults.QueryResult {
-	payload, err := qresults.Q1Result{ResultArticles: batch}.ToBytes()
-	if err != nil {
-		slog.Error("While serializing Q1Result", "err", err)
-		return nil
-	}
-	return &qresults.QueryResult{
-		QueryCode:     qresults.Q1Code,
-		ResultPayload: payload,
-	}
-}
-
-func logic() aggregator.Logic[*qresults.English2020Article] {
-	return aggregator.Logic[*qresults.English2020Article]{
-		DeserializeQueryResult: func(data []byte) (generic.Batch[*qresults.English2020Article], error) {
-			res, err := qresults.Q1ResultFromBytes(data)
-			if err != nil {
-				return generic.Batch[*qresults.English2020Article]{}, err
-			}
-			return res.ResultArticles, nil
-		},
-
-		NewEmptyBatch:           qresults.NewEmptyEnglish2020ArticleBatch,
-		DeserializeArticleBatch: qresults.English2020ArticleBatchFromBytes,
-		BuildQueryResult:        buildQ1Result,
-	}
-}
 func loadConfig() (aggregator.Config[*qresults.English2020Article], error) {
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
@@ -74,7 +46,7 @@ func loadConfig() (aggregator.Config[*qresults.English2020Article], error) {
 		StorageName:     "q1",
 		QueryCode:       qresults.Q1Code,
 		ExpectedMsgCode: messages.Q1ResultCode,
-		Logic:           logic(),
+		Handler:         &qresults.Q1Result{},
 	}, nil
 }
 

@@ -1,6 +1,7 @@
 package querysresults
 
 import (
+	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
 )
 
@@ -34,4 +35,11 @@ func QueryResultFromBytes(data []byte) (*QueryResult, error) {
 		QueryCode:     QueryResultCode(queryCode),
 		ResultPayload: data[offset:],
 	}, nil
+}
+
+type QueryResultHandler[T generic.SerializableMessage] interface {
+	DeserializeQueryResult(data []byte) (generic.Batch[T], error)
+	NewEmptyBatch(len int) generic.Batch[T]
+	DeserializeArticleBatch(data []byte) (*generic.Batch[T], error)
+	BuildQueryResult(batch generic.Batch[T]) *QueryResult
 }

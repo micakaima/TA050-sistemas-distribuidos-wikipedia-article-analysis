@@ -7,38 +7,10 @@ import (
 	"strconv"
 
 	aggregator "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic/aggregator"
-	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	qresults "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/querys_results"
 )
 
-func buildQ2Result(batch generic.Batch[*qresults.ImageArticle]) *qresults.QueryResult {
-	payload, err := qresults.Q2Result{ResultArticles: batch}.ToBytes()
-	if err != nil {
-		slog.Error("While serializing Q2Result", "err", err)
-		return nil
-	}
-	return &qresults.QueryResult{
-		QueryCode:     qresults.Q2Code,
-		ResultPayload: payload,
-	}
-}
-
-func logic() aggregator.Logic[*qresults.ImageArticle] {
-	return aggregator.Logic[*qresults.ImageArticle]{
-		DeserializeQueryResult: func(data []byte) (generic.Batch[*qresults.ImageArticle], error) {
-			res, err := qresults.Q2ResultFromBytes(data)
-			if err != nil {
-				return generic.Batch[*qresults.ImageArticle]{}, err
-			}
-			return res.ResultArticles, nil
-		},
-
-		NewEmptyBatch:           qresults.NewEmptyImageArticleBatch,
-		DeserializeArticleBatch: qresults.ImageArticleBatchFromBytes,
-		BuildQueryResult:        buildQ2Result,
-	}
-}
 func loadConfig() (aggregator.Config[*qresults.ImageArticle], error) {
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
@@ -74,7 +46,7 @@ func loadConfig() (aggregator.Config[*qresults.ImageArticle], error) {
 		StorageName:     "q2",
 		QueryCode:       qresults.Q2Code,
 		ExpectedMsgCode: messages.Q2ResultCode,
-		Logic:           logic(),
+		Handler:         &qresults.Q2Result{},
 	}, nil
 }
 

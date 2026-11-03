@@ -120,3 +120,28 @@ func (queryResult *Q1Result) WriteToFile(path string) error {
 	}
 	return nil
 }
+
+func (queryResult *Q1Result) DeserializeQueryResult(data []byte) (generic.Batch[*English2020Article], error) {
+	q1Result, err := Q1ResultFromBytes(data)
+	if err != nil {
+		return generic.Batch[*English2020Article]{}, err
+	}
+	return q1Result.ResultArticles, nil
+}
+
+func (queryResult *Q1Result) NewEmptyBatch(len int) generic.Batch[*English2020Article] {
+	return NewEmptyEnglish2020ArticleBatch(len)
+}
+
+func (queryResult *Q1Result) DeserializeArticleBatch(data []byte) (*generic.Batch[*English2020Article], error) {
+	return English2020ArticleBatchFromBytes(data)
+}
+
+func (queryResult *Q1Result) BuildQueryResult(batch generic.Batch[*English2020Article]) *QueryResult {
+	result := Q1Result{ResultArticles: batch}
+	payload, _ := result.ToBytes()
+	return &QueryResult{
+		QueryCode:     Q1Code,
+		ResultPayload: payload,
+	}
+}

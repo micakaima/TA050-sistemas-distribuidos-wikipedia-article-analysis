@@ -262,7 +262,7 @@ services:
       dockerfile: src/workers/english_filter/Dockerfile
     container_name: english_filter
     depends_on:
-      - result_aggregator
+      - q1_aggregator
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
@@ -290,7 +290,7 @@ services:
       dockerfile: src/workers/image_downloader/Dockerfile
     container_name: image_downloader
     depends_on:
-      - result_aggregator
+      - q2_aggregator
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
