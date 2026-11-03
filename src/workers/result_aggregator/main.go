@@ -30,6 +30,11 @@ func loadConfig() (aggregator.Config, error) {
 		return aggregator.Config{}, errors.New("Q2_INPUT_QUEUE environment variable is required")
 	}
 
+	q3EofInputQueue := os.Getenv("Q3_EOF_INPUT_QUEUE")
+	if q3EofInputQueue == "" {
+		return aggregator.Config{}, errors.New("Q3_EOF_INPUT_QUEUE environment variable is required")
+	}
+
 	outputQueue := os.Getenv("OUTPUT_QUEUE")
 	if outputQueue == "" {
 		return aggregator.Config{}, errors.New("OUTPUT_QUEUE environment variable is required")
@@ -41,12 +46,13 @@ func loadConfig() (aggregator.Config, error) {
 	}
 
 	return aggregator.Config{
-		MomHost:      momHost,
-		MomPort:      momPort,
-		Q1InputQueue: q1InputQueue,
-		Q2InputQueue: q2InputQueue,
-		OutputQueue:  outputQueue,
-		StorageDir:   storageDir,
+		MomHost:         momHost,
+		MomPort:         momPort,
+		Q1InputQueue:    q1InputQueue,
+		Q2InputQueue:    q2InputQueue,
+		Q3EOFInputQueue: q3EofInputQueue,
+		OutputQueue:     outputQueue,
+		StorageDir:      storageDir,
 	}, nil
 }
 

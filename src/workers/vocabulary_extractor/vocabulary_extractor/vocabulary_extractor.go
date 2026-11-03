@@ -19,19 +19,22 @@ import (
 const PUNCTUATION_SYMBOLS = "-.,():;!?[]{}'\""
 
 type VocabularyExtractorConfig struct {
-	MomHost       string
-	MomPort       int
-	InputQueue    string
-	OutputQueueQ3 string
-	OutputQueueQ4 string
-	OutputQueueQ5 string
+	MomHost                     string
+	MomPort                     int
+	InputQueue                  string
+	OutputQueueQ4               string
+	OutputQueueQ5               string
+	SharedWordsAggregatorAmount int
+	SharedWordsAggregatorPrefix string
 }
 
 type VocabularyExtractorWorker struct {
-	inputQueue    middleware.Middleware
-	outputQueueQ3 middleware.Middleware
-	outputQueueQ4 middleware.Middleware
-	outputQueueQ5 middleware.Middleware
+	inputQueue                  middleware.Middleware
+	outputExchangeQ3            middleware.ExchangeMiddleware
+	outputQueueQ4               middleware.Middleware
+	outputQueueQ5               middleware.Middleware
+	sharedWordsAggregatorAmount int
+	sharedWordsAggregatorPrefix string
 }
 
 func New(config VocabularyExtractorConfig) (*VocabularyExtractorWorker, error) {
@@ -41,7 +44,7 @@ func New(config VocabularyExtractorConfig) (*VocabularyExtractorWorker, error) {
 	if err != nil {
 		return nil, err
 	}
-	outputQueueQ3, err := middleware.CreateQueueMiddleware(config.OutputQueueQ3, connSettings)
+	outputExchangeQ3, err := middleware.CreateExchangeMiddleware(config.SharedWordsAggregatorPrefix, []string{}, connSettings)
 	if err != nil {
 		inputQueue.Close()
 		return nil, err
@@ -49,21 +52,23 @@ func New(config VocabularyExtractorConfig) (*VocabularyExtractorWorker, error) {
 	outputQueueQ4, err := middleware.CreateQueueMiddleware(config.OutputQueueQ4, connSettings)
 	if err != nil {
 		inputQueue.Close()
-		outputQueueQ3.Close()
+		outputExchangeQ3.Close()
 		return nil, err
 	}
 	outputQueueQ5, err := middleware.CreateQueueMiddleware(config.OutputQueueQ5, connSettings)
 	if err != nil {
 		inputQueue.Close()
-		outputQueueQ3.Close()
+		outputExchangeQ3.Close()
 		outputQueueQ4.Close()
 		return nil, err
 	}
 	return &VocabularyExtractorWorker{
-		inputQueue:    inputQueue,
-		outputQueueQ3: outputQueueQ3,
-		outputQueueQ4: outputQueueQ4,
-		outputQueueQ5: outputQueueQ5,
+		inputQueue:                  inputQueue,
+		outputExchangeQ3:            outputExchangeQ3,
+		outputQueueQ4:               outputQueueQ4,
+		outputQueueQ5:               outputQueueQ5,
+		sharedWordsAggregatorAmount: config.SharedWordsAggregatorAmount,
+		sharedWordsAggregatorPrefix: config.SharedWordsAggregatorPrefix,
 	}, nil
 }
 
@@ -101,8 +106,8 @@ func (w *VocabularyExtractorWorker) shutdown() {
 	if err := w.inputQueue.Close(); err != nil {
 		slog.Error("While closing input queue", "err", err)
 	}
-	if err := w.outputQueueQ3.Close(); err != nil {
-		slog.Error("While closing Q3 output queue", "err", err)
+	if err := w.outputExchangeQ3.Close(); err != nil {
+		slog.Error("While closing Q3 output exchange", "err", err)
 	}
 	if err := w.outputQueueQ4.Close(); err != nil {
 		slog.Error("While closing Q4 output queue", "err", err)
@@ -143,7 +148,11 @@ func (w *VocabularyExtractorWorker) handleRawAbstract(msg middleware.Message) er
 	cleanVocabularies := extractCleanVocabularies(*rawAbstractBatch)
 	wordCounts := filterByQuery(cleanVocabularies)
 
-	// AGREGAR EL RESTO DE MENSAJES CUANDO ESTEN Q3 y Q4
+	if err := w.sendSharedWordCandidates(msg.ClientID, cleanVocabularies); err != nil {
+		slog.Debug("While sending Shared Word Candidate messages", "err", err)
+		return err
+	}
+
 	wordCountsMsg, err := middleware.NewMessage(msg.ClientID, messages.WordCountCode, &wordCounts)
 	if err != nil {
 		slog.Debug("While creating Word Count Batch message", "err", err)
@@ -157,6 +166,23 @@ func (w *VocabularyExtractorWorker) handleRawAbstract(msg middleware.Message) er
 	return nil
 }
 
+func (w *VocabularyExtractorWorker) sendSharedWordCandidates(clientID uint64, cleanVocabularies generic.Batch[*messages.ExtractedVocabulary]) error {
+	candidatesByNode := groupSharedWordCandidates(cleanVocabularies, w.sharedWordsAggregatorAmount)
+	for node, candidates := range candidatesByNode {
+		msg, err := middleware.NewMessage(clientID, messages.SharedWordCandidateCode, candidates)
+		if err != nil {
+			slog.Debug("While creating Shared Word Candidate Batch message", "err", err)
+			return err
+		}
+		routingKey := utils.GenerateRoutingKey(w.sharedWordsAggregatorPrefix, node)
+		if err := w.outputExchangeQ3.SendToKey(*msg, routingKey); err != nil {
+			slog.Debug("While sending Shared Word Candidate Batch message", "err", err)
+			return err
+		}
+	}
+	return nil
+}
+
 func (w *VocabularyExtractorWorker) handleEOF(msg middleware.Message) error {
 	slog.Info("Received EOF message")
 	eof := messages.EofMsg{}
@@ -165,10 +191,16 @@ func (w *VocabularyExtractorWorker) handleEOF(msg middleware.Message) error {
 		slog.Debug("While creating EOF message", "err", err)
 		return err
 	}
-	if err := w.outputQueueQ3.Send(*eofMessage); err != nil {
-		slog.Debug("While sending EOF message", "err", err)
-		return err
+
+	// Broadcast del EOF a todos los shards de Q3.
+	for n := 0; n < w.sharedWordsAggregatorAmount; n++ {
+		routingKey := utils.GenerateRoutingKey(w.sharedWordsAggregatorPrefix, n)
+		if err := w.outputExchangeQ3.SendToKey(*eofMessage, routingKey); err != nil {
+			slog.Debug("While sending EOF message to Q3 shard", "err", err)
+			return err
+		}
 	}
+
 	if err := w.outputQueueQ4.Send(*eofMessage); err != nil {
 		slog.Debug("While sending EOF message", "err", err)
 		return err
@@ -178,6 +210,26 @@ func (w *VocabularyExtractorWorker) handleEOF(msg middleware.Message) error {
 		return err
 	}
 	return nil
+}
+
+// groupSharedWordCandidates agrupa los candidatos de Q3 por shard según el hash de la palabra.
+func groupSharedWordCandidates(cleanVocabularies generic.Batch[*messages.ExtractedVocabulary], amount int) map[int]*generic.Batch[*messages.SharedWordCandidate] {
+	candidatesByNode := make(map[int]*generic.Batch[*messages.SharedWordCandidate])
+	for _, v := range cleanVocabularies.Items {
+		for word := range v.Vocabulary {
+			targetNode := utils.GetTargetNodeByWord(word, amount)
+			if _, exists := candidatesByNode[targetNode]; !exists {
+				batch := messages.NewEmptySharedWordCandidateBatch(0)
+				candidatesByNode[targetNode] = &batch
+			}
+			candidatesByNode[targetNode].Add(&messages.SharedWordCandidate{
+				ArticleID:  v.ArticleID,
+				InLanguage: v.InLanguage,
+				Word:       word,
+			})
+		}
+	}
+	return candidatesByNode
 }
 
 func extractCleanVocabularies(rawAbstractBatch generic.Batch[*messages.RawAbstract]) generic.Batch[*messages.ExtractedVocabulary] {
@@ -209,7 +261,7 @@ func extractCleanVocabulary(abstract string, lang string) map[string]struct{} {
 	return cleanVocabulary
 }
 
-// AGREGAR EL RESTO DE RESULTADOS CUANDO ESTEN Q3 y Q4
+// filterByQuery genera los word counts para Q5.
 func filterByQuery(cleanVocabularies generic.Batch[*messages.ExtractedVocabulary]) generic.Batch[*messages.WordCount] {
 	wordCounts := messages.NewEmptyWordCountBatch(cleanVocabularies.Len())
 

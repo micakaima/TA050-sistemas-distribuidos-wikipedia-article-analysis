@@ -16,26 +16,29 @@ import (
 )
 
 type Config struct {
-	MomHost      string
-	MomPort      int
-	Q1InputQueue string
-	Q2InputQueue string
-	OutputQueue  string
-	StorageDir   string
+	MomHost         string
+	MomPort         int
+	Q1InputQueue    string
+	Q2InputQueue    string
+	Q3EOFInputQueue string
+	OutputQueue     string
+	StorageDir      string
 }
 
 type clientState struct {
 	q1Done    bool
 	q2Done    bool
+	q3Done    bool
 	finalSent bool
 }
 
 type Worker struct {
-	q1Input   middleware.Middleware
-	q2Input   middleware.Middleware
-	output    middleware.Middleware
-	q1Storage *Storage
-	q2Storage *Storage
+	q1Input    middleware.Middleware
+	q2Input    middleware.Middleware
+	q3EofInput middleware.Middleware
+	output     middleware.Middleware
+	q1Storage  *Storage
+	q2Storage  *Storage
 
 	mu      sync.Mutex
 	clients map[uint64]*clientState
@@ -53,20 +56,28 @@ func New(config Config) (*Worker, error) {
 		q1Input.Close()
 		return nil, err
 	}
-	output, err := middleware.CreateQueueMiddleware(config.OutputQueue, settings)
+	q3EofInput, err := middleware.CreateQueueMiddleware(config.Q3EOFInputQueue, settings)
 	if err != nil {
 		q1Input.Close()
 		q2Input.Close()
 		return nil, err
 	}
+	output, err := middleware.CreateQueueMiddleware(config.OutputQueue, settings)
+	if err != nil {
+		q1Input.Close()
+		q2Input.Close()
+		q3EofInput.Close()
+		return nil, err
+	}
 
 	return &Worker{
-		q1Input:   q1Input,
-		q2Input:   q2Input,
-		output:    output,
-		q1Storage: NewStorage("q1", config.StorageDir),
-		q2Storage: NewStorage("q2", config.StorageDir),
-		clients:   make(map[uint64]*clientState),
+		q1Input:    q1Input,
+		q2Input:    q2Input,
+		q3EofInput: q3EofInput,
+		output:     output,
+		q1Storage:  NewStorage("q1", config.StorageDir),
+		q2Storage:  NewStorage("q2", config.StorageDir),
+		clients:    make(map[uint64]*clientState),
 	}, nil
 }
 
@@ -89,10 +100,18 @@ func (w *Worker) Run() {
 			slog.Error("Q2 consumer stopped", "err", err)
 		}
 	})
+	utils.SpawnWithWG(&waitGroup, func() {
+		if err := w.q3EofInput.StartConsuming(func(msg middleware.Message, ack, nack func()) {
+			w.handleQ3Done(msg, ack, nack)
+		}); err != nil {
+			slog.Error("Q3 EOF consumer stopped", "err", err)
+		}
+	})
 
 	<-signals
 	w.q1Input.StopConsuming()
 	w.q2Input.StopConsuming()
+	w.q3EofInput.StopConsuming()
 	waitGroup.Wait()
 	w.shutdown()
 }
@@ -103,6 +122,9 @@ func (w *Worker) shutdown() {
 	}
 	if err := w.q2Input.Close(); err != nil {
 		slog.Error("While closing Q2 input queue", "err", err)
+	}
+	if err := w.q3EofInput.Close(); err != nil {
+		slog.Error("While closing Q3 EOF input queue", "err", err)
 	}
 	if err := w.output.Close(); err != nil {
 		slog.Error("While closing output queue", "err", err)
@@ -173,6 +195,24 @@ func (w *Worker) handleQ2(msg middleware.Message, ack, nack func()) {
 	}
 	if err := w.q2Storage.Write(msg.ClientID, batchBytes); err != nil {
 		slog.Error("While storing Q2 results", "err", err)
+		nack()
+		return
+	}
+	ack()
+}
+
+func (w *Worker) handleQ3Done(msg middleware.Message, ack, nack func()) {
+	if msg.MsgCode != messages.EOFCode {
+		nack()
+		return
+	}
+	state := utils.WithLockAndReturn(&w.mu, func() *clientState {
+		state := w.getClient(msg.ClientID)
+		state.q3Done = true
+		return state
+	})
+	if err := w.finishClientIfDone(msg.ClientID, state); err != nil {
+		slog.Error("While finishing client after Q3", "err", err)
 		nack()
 		return
 	}
@@ -287,7 +327,7 @@ func (w *Worker) publishQueryResult(clientID uint64, queryCode qresults.QueryRes
 
 func (w *Worker) shouldSendEOF(clientID uint64, state *clientState) bool {
 	return utils.WithLockAndReturn(&w.mu, func() bool {
-		if !state.q1Done || !state.q2Done || state.finalSent {
+		if !state.q1Done || !state.q2Done || !state.q3Done || state.finalSent {
 			return false
 		}
 		state.finalSent = true
