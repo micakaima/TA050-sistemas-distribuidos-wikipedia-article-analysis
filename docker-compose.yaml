@@ -15,6 +15,41 @@ services:
     volumes:
       - ./data/input:/input
       - ./data/output:/output
+
+  client_1:
+    build:
+      context: .
+      dockerfile: src/client/Dockerfile
+    container_name: client_1
+    depends_on:
+      - column_filter
+    environment:
+      - INPUT_DIR=/input/input_1
+      - OUTPUT_DIR=/output/output_1
+      - SERVER_HOST=gateway
+      - SERVER_PORT=5678
+      - BATCH_SIZE=5
+    volumes:
+      - ./data/input:/input
+      - ./data/output:/output
+
+  client_2:
+    build:
+      context: .
+      dockerfile: src/client/Dockerfile
+    container_name: client_2
+    depends_on:
+      - column_filter
+    environment:
+      - INPUT_DIR=/input/input_2
+      - OUTPUT_DIR=/output/output_2
+      - SERVER_HOST=gateway
+      - SERVER_PORT=5678
+      - BATCH_SIZE=5
+    volumes:
+      - ./data/input:/input
+      - ./data/output:/output
+
   gateway:
     build:
       context: .
@@ -84,39 +119,79 @@ services:
       dockerfile: src/workers/year_splitter/Dockerfile
     container_name: year_splitter
     depends_on:
-      - old_articles_averager
+      - old_articles_averager_0
+      - old_articles_averager_1
+      - above_average_filter_0
+      - above_average_filter_1
     environment:
+      - OLD_ARTICLES_AVERAGER_AMOUNT=2
+      - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
+      - ABOVE_AVERAGE_FILTER_AMOUNT=2
+      - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - INPUT_QUEUE=q5_queue
-      - OUTPUT_QUEUE_OLD=old_articles_queue
-      - OUTPUT_QUEUE_NEW=new_articles_queue
   
-  old_articles_averager:
+  old_articles_averager_0:
     build:
       context: .
       dockerfile: src/workers/old_articles_averager/Dockerfile
-    container_name: old_articles_averager
+    container_name: old_articles_averager_0
     depends_on:
-      - above_average_filter
+      - above_average_filter_0
+      - above_average_filter_1
     environment:
+      - ID=0
+      - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
+      - ABOVE_AVERAGE_FILTER_AMOUNT=2
+      - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - INPUT_QUEUE=old_articles_queue
-      - OUTPUT_QUEUE=average_queue
+
+  old_articles_averager_1:
+    build:
+      context: .
+      dockerfile: src/workers/old_articles_averager/Dockerfile
+    container_name: old_articles_averager_1
+    depends_on:
+      - above_average_filter_0
+      - above_average_filter_1
+    environment:
+      - ID=1
+      - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
+      - ABOVE_AVERAGE_FILTER_AMOUNT=2
+      - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
   
-  above_average_filter:
+  above_average_filter_0:
     build:
       context: .
       dockerfile: src/workers/above_average_filter/Dockerfile
-    container_name: above_average_filter
+    container_name: above_average_filter_0
     depends_on:
       - gateway
     environment:
+      - ID=0
+      - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
+      - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - INPUT_QUEUE_DATA=new_articles_queue
-      - INPUT_QUEUE_AVERAGE=average_queue
+      - OUTPUT_QUEUE=results_queue
+
+  above_average_filter_1:
+    build:
+      context: .
+      dockerfile: src/workers/above_average_filter/Dockerfile
+    container_name: above_average_filter_1
+    depends_on:
+      - gateway
+    environment:
+      - ID=1
+      - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
+      - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
       - OUTPUT_QUEUE=results_queue
 
   year_filter:

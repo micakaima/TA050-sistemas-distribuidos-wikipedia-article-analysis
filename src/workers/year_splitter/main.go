@@ -26,22 +26,34 @@ func loadConfig() (ysplitter.YearSplitterConfig, error) {
 		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "INPUT_QUEUE")
 	}
 
-	outputQueueOld := os.Getenv("OUTPUT_QUEUE_OLD")
-	if outputQueueOld == "" {
-		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE_OLD")
+	oldArticlesAveragerAmount, err := strconv.Atoi(os.Getenv("OLD_ARTICLES_AVERAGER_AMOUNT"))
+	if err != nil {
+		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "OLD_ARTICLES_AVERAGER_AMOUNT")
 	}
 
-	outputQueueNew := os.Getenv("OUTPUT_QUEUE_NEW")
-	if outputQueueNew == "" {
-		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE_NEW")
+	oldArticlesAveragerPrefix := os.Getenv("OLD_ARTICLES_AVERAGER_PREFIX")
+	if oldArticlesAveragerPrefix == "" {
+		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "OLD_ARTICLES_AVERAGER_PREFIX")
+	}
+
+	aboveAverageFilterAmount, err := strconv.Atoi(os.Getenv("ABOVE_AVERAGE_FILTER_AMOUNT"))
+	if err != nil {
+		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "ABOVE_AVERAGE_FILTER_AMOUNT")
+	}
+
+	aboveAverageFilterPrefix := os.Getenv("ABOVE_AVERAGE_FILTER_PREFIX_DATA")
+	if aboveAverageFilterPrefix == "" {
+		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "ABOVE_AVERAGE_FILTER_PREFIX_DATA")
 	}
 
 	return ysplitter.YearSplitterConfig{
-		MomHost:        momHost,
-		MomPort:        momPort,
-		InputQueue:     inputQueue,
-		OutputQueueOld: outputQueueOld,
-		OutputQueueNew: outputQueueNew,
+		MomHost:                   momHost,
+		MomPort:                   momPort,
+		InputQueue:                inputQueue,
+		OldArticlesAveragerAmount: oldArticlesAveragerAmount,
+		OldArticlesAveragerPrefix: oldArticlesAveragerPrefix,
+		AboveAverageFilterAmount:  aboveAverageFilterAmount,
+		AboveAverageFilterPrefix:  aboveAverageFilterPrefix,
 	}, nil
 }
 

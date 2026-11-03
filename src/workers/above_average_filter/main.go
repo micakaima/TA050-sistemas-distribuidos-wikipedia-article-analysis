@@ -11,6 +11,11 @@ import (
 )
 
 func loadConfig() (abovefilter.AboveAverageFilterConfig, error) {
+	id, err := strconv.Atoi(os.Getenv("ID"))
+	if err != nil {
+		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "ID")
+	}
+
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
 		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_HOST")
@@ -21,27 +26,28 @@ func loadConfig() (abovefilter.AboveAverageFilterConfig, error) {
 		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_PORT")
 	}
 
-	dataInputQueue := os.Getenv("INPUT_QUEUE_DATA")
-	if dataInputQueue == "" {
-		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "INPUT_QUEUE_DATA")
-	}
-
-	averageInputQueue := os.Getenv("INPUT_QUEUE_AVERAGE")
-	if averageInputQueue == "" {
-		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "INPUT_QUEUE_AVERAGE")
-	}
-
 	outputQueue := os.Getenv("OUTPUT_QUEUE")
 	if outputQueue == "" {
 		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE")
 	}
 
+	aboveAverageFilterPrefixData := os.Getenv("ABOVE_AVERAGE_FILTER_PREFIX_DATA")
+	if aboveAverageFilterPrefixData == "" {
+		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "ABOVE_AVERAGE_FILTER_PREFIX_DATA")
+	}
+
+	aboveAverageFilterPrefixAverage := os.Getenv("ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE")
+	if aboveAverageFilterPrefixAverage == "" {
+		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE")
+	}
+
 	return abovefilter.AboveAverageFilterConfig{
-		MomHost:           momHost,
-		MomPort:           momPort,
-		DataInputQueue:    dataInputQueue,
-		AverageInputQueue: averageInputQueue,
-		OutputQueue:       outputQueue,
+		Id:                              id,
+		MomHost:                         momHost,
+		MomPort:                         momPort,
+		OutputQueue:                     outputQueue,
+		AboveAverageFilterPrefixData:    aboveAverageFilterPrefixData,
+		AboveAverageFilterPrefixAverage: aboveAverageFilterPrefixAverage,
 	}, nil
 }
 

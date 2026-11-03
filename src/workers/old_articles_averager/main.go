@@ -11,6 +11,11 @@ import (
 )
 
 func loadConfig() (averager.OldArticlesAveragerConfig, error) {
+	id, err := strconv.Atoi(os.Getenv("ID"))
+	if err != nil {
+		return averager.OldArticlesAveragerConfig{}, fmt.Errorf(errors.ConfigSetupError, "ID")
+	}
+
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
 		return averager.OldArticlesAveragerConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_HOST")
@@ -21,21 +26,28 @@ func loadConfig() (averager.OldArticlesAveragerConfig, error) {
 		return averager.OldArticlesAveragerConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_PORT")
 	}
 
-	inputQueue := os.Getenv("INPUT_QUEUE")
-	if inputQueue == "" {
-		return averager.OldArticlesAveragerConfig{}, fmt.Errorf(errors.ConfigSetupError, "INPUT_QUEUE")
+	oldArticlesAveragerPrefix := os.Getenv("OLD_ARTICLES_AVERAGER_PREFIX")
+	if oldArticlesAveragerPrefix == "" {
+		return averager.OldArticlesAveragerConfig{}, fmt.Errorf(errors.ConfigSetupError, "OLD_ARTICLES_AVERAGER_PREFIX")
 	}
 
-	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if outputQueue == "" {
-		return averager.OldArticlesAveragerConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE")
+	aboveAverageFilterAmount, err := strconv.Atoi(os.Getenv("ABOVE_AVERAGE_FILTER_AMOUNT"))
+	if err != nil {
+		return averager.OldArticlesAveragerConfig{}, fmt.Errorf(errors.ConfigSetupError, "ABOVE_AVERAGE_FILTER_AMOUNT")
+	}
+
+	aboveAverageFilterPrefix := os.Getenv("ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE")
+	if aboveAverageFilterPrefix == "" {
+		return averager.OldArticlesAveragerConfig{}, fmt.Errorf(errors.ConfigSetupError, "ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE")
 	}
 
 	return averager.OldArticlesAveragerConfig{
-		MomHost:     momHost,
-		MomPort:     momPort,
-		InputQueue:  inputQueue,
-		OutputQueue: outputQueue,
+		Id:                        id,
+		MomHost:                   momHost,
+		MomPort:                   momPort,
+		OldArticlesAveragerPrefix: oldArticlesAveragerPrefix,
+		AboveAverageFilterAmount:  aboveAverageFilterAmount,
+		AboveAverageFilterPrefix:  aboveAverageFilterPrefix,
 	}, nil
 }
 

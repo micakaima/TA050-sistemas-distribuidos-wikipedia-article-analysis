@@ -1,8 +1,12 @@
 package utils
 
 import (
+	"fmt"
+	"hash/fnv"
 	"sync"
 )
+
+const FIXED_SEED = "42"
 
 func SpawnWithWG(wg *sync.WaitGroup, fn func()) {
 	wg.Add(1)
@@ -22,4 +26,17 @@ func WithLockAndReturn[T any](lock *sync.Mutex, fn func() T) T {
 	lock.Lock()
 	defer lock.Unlock()
 	return fn()
+}
+
+func GenerateRoutingKey(prefix string, id int) string {
+	return fmt.Sprintf("%s_%d", prefix, id)
+}
+
+func GetTargetNode(clientId uint64, amountNodes int) int {
+	h := fnv.New64a()
+	h.Write([]byte(FIXED_SEED))
+	fmt.Fprintf(h, "-%d", clientId)
+
+	hashValue := h.Sum64()
+	return int(hashValue % uint64(amountNodes))
 }

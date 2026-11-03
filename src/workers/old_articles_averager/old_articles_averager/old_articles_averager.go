@@ -13,16 +13,20 @@ import (
 )
 
 type OldArticlesAveragerConfig struct {
-	MomHost     string
-	MomPort     int
-	InputQueue  string
-	OutputQueue string
+	Id                        int
+	MomHost                   string
+	MomPort                   int
+	OldArticlesAveragerPrefix string
+	AboveAverageFilterAmount  int
+	AboveAverageFilterPrefix  string
 }
 
 type OldArticlesAveragerWorker struct {
-	inputQueue   middleware.Middleware
-	outputQueue  middleware.Middleware
-	clientStates map[uint64]*ClientState
+	inputExchange            middleware.Middleware
+	outputExchange           middleware.ExchangeMiddleware
+	clientStates             map[uint64]*ClientState
+	aboveAverageFilterAmount int
+	aboveAverageFilterPrefix string
 }
 
 type ClientState struct {
@@ -33,19 +37,24 @@ type ClientState struct {
 func New(config OldArticlesAveragerConfig) (*OldArticlesAveragerWorker, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
-	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueue, connSettings)
+	inputExchangeRoutingKey := []string{utils.GenerateRoutingKey(config.OldArticlesAveragerPrefix, config.Id)}
+	inputExchange, err := middleware.CreateExchangeMiddleware(config.OldArticlesAveragerPrefix, inputExchangeRoutingKey, connSettings)
 	if err != nil {
 		return nil, err
 	}
-	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
+
+	outputExchange, err := middleware.CreateExchangeMiddleware(config.AboveAverageFilterPrefix, []string{}, connSettings)
 	if err != nil {
-		inputQueue.Close()
+		inputExchange.Close()
 		return nil, err
 	}
+
 	return &OldArticlesAveragerWorker{
-		inputQueue:   inputQueue,
-		outputQueue:  outputQueue,
-		clientStates: map[uint64]*ClientState{},
+		inputExchange:            inputExchange,
+		outputExchange:           outputExchange,
+		clientStates:             map[uint64]*ClientState{},
+		aboveAverageFilterAmount: config.AboveAverageFilterAmount,
+		aboveAverageFilterPrefix: config.AboveAverageFilterPrefix,
 	}, nil
 }
 
@@ -56,7 +65,7 @@ func (w *OldArticlesAveragerWorker) Run() {
 	var wg sync.WaitGroup
 
 	utils.SpawnWithWG(&wg, func() {
-		w.inputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
+		w.inputExchange.StartConsuming(func(msg middleware.Message, ack, nack func()) {
 			w.handleMessage(msg, ack, nack)
 		})
 	})
@@ -72,7 +81,7 @@ func (w *OldArticlesAveragerWorker) handleSignals(done chan struct{}) {
 		select {
 		case <-signals:
 			slog.Info("Graceful shutdown started...")
-			w.inputQueue.StopConsuming()
+			w.inputExchange.StopConsuming()
 		case <-done:
 			return
 		}
@@ -80,10 +89,10 @@ func (w *OldArticlesAveragerWorker) handleSignals(done chan struct{}) {
 }
 
 func (w *OldArticlesAveragerWorker) shutdown() {
-	if err := w.inputQueue.Close(); err != nil {
+	if err := w.inputExchange.Close(); err != nil {
 		slog.Error("While closing input queue", "err", err)
 	}
-	if err := w.outputQueue.Close(); err != nil {
+	if err := w.outputExchange.Close(); err != nil {
 		slog.Error("While closing output queue", "err", err)
 	}
 }
@@ -132,7 +141,7 @@ func (w *OldArticlesAveragerWorker) handleEOF(msg middleware.Message) error {
 		slog.Debug("While creating Old Average message", "err", err)
 		return err
 	}
-	if err := w.outputQueue.Send(*averageMsg); err != nil {
+	if err := w.sendToAboveAverageFilter(msg.ClientID, *averageMsg); err != nil {
 		slog.Debug("While sending Old Average message", "err", err)
 		return err
 	}
@@ -155,4 +164,14 @@ func (w *OldArticlesAveragerWorker) calculateAverage(clientID uint64) float64 {
 		return 0
 	}
 	return float64(clientState.totalWords) / float64(clientState.totalCount)
+}
+
+func (w *OldArticlesAveragerWorker) sendToAboveAverageFilter(clientID uint64, msg middleware.Message) error {
+	targetNode := utils.GetTargetNode(clientID, w.aboveAverageFilterAmount)
+	routingKey := utils.GenerateRoutingKey(w.aboveAverageFilterPrefix, targetNode)
+	if err := w.outputExchange.SendToKey(msg, routingKey); err != nil {
+		slog.Debug("While sending New Articles Word Count Batch message", "err", err)
+		return err
+	}
+	return nil
 }

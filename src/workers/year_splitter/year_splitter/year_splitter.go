@@ -17,17 +17,23 @@ import (
 const SPLITTER_YEAR = 2020
 
 type YearSplitterConfig struct {
-	MomHost        string
-	MomPort        int
-	InputQueue     string
-	OutputQueueOld string
-	OutputQueueNew string
+	MomHost                   string
+	MomPort                   int
+	InputQueue                string
+	OldArticlesAveragerAmount int
+	OldArticlesAveragerPrefix string
+	AboveAverageFilterAmount  int
+	AboveAverageFilterPrefix  string
 }
 
 type YearSplitterWorker struct {
-	inputQueue     middleware.Middleware
-	outputQueueOld middleware.Middleware
-	outputQueueNew middleware.Middleware
+	inputQueue                middleware.Middleware
+	outputExchangeOld         middleware.ExchangeMiddleware
+	outputExchangeNew         middleware.ExchangeMiddleware
+	oldArticlesAveragerAmount int
+	oldArticlesAveragerPrefix string
+	aboveAverageFilterAmount  int
+	aboveAverageFilterPrefix  string
 }
 
 func New(config YearSplitterConfig) (*YearSplitterWorker, error) {
@@ -37,21 +43,28 @@ func New(config YearSplitterConfig) (*YearSplitterWorker, error) {
 	if err != nil {
 		return nil, err
 	}
-	outputQueueOld, err := middleware.CreateQueueMiddleware(config.OutputQueueOld, connSettings)
+
+	outputExchangeOld, err := middleware.CreateExchangeMiddleware(config.OldArticlesAveragerPrefix, []string{}, connSettings)
 	if err != nil {
 		inputQueue.Close()
 		return nil, err
 	}
-	outputQueueNew, err := middleware.CreateQueueMiddleware(config.OutputQueueNew, connSettings)
+
+	outputExchangeNew, err := middleware.CreateExchangeMiddleware(config.AboveAverageFilterPrefix, []string{}, connSettings)
 	if err != nil {
 		inputQueue.Close()
-		outputQueueOld.Close()
+		outputExchangeOld.Close()
 		return nil, err
 	}
+
 	return &YearSplitterWorker{
-		inputQueue:     inputQueue,
-		outputQueueOld: outputQueueOld,
-		outputQueueNew: outputQueueNew,
+		inputQueue:                inputQueue,
+		outputExchangeOld:         outputExchangeOld,
+		outputExchangeNew:         outputExchangeNew,
+		oldArticlesAveragerAmount: config.OldArticlesAveragerAmount,
+		oldArticlesAveragerPrefix: config.OldArticlesAveragerPrefix,
+		aboveAverageFilterAmount:  config.AboveAverageFilterAmount,
+		aboveAverageFilterPrefix:  config.AboveAverageFilterPrefix,
 	}, nil
 }
 
@@ -89,11 +102,11 @@ func (w *YearSplitterWorker) shutdown() {
 	if err := w.inputQueue.Close(); err != nil {
 		slog.Error("While closing input queue", "err", err)
 	}
-	if err := w.outputQueueOld.Close(); err != nil {
-		slog.Error("While closing Old output queue", "err", err)
+	if err := w.outputExchangeOld.Close(); err != nil {
+		slog.Error("While closing Old output exchange", "err", err)
 	}
-	if err := w.outputQueueNew.Close(); err != nil {
-		slog.Error("While closing New output queue", "err", err)
+	if err := w.outputExchangeNew.Close(); err != nil {
+		slog.Error("While closing New output exchange", "err", err)
 	}
 }
 
@@ -132,8 +145,7 @@ func (w *YearSplitterWorker) handleWordCount(msg middleware.Message) error {
 		slog.Debug("While creating Old Articles Word Count Batch message", "err", err)
 		return err
 	}
-	if err := w.outputQueueOld.Send(*oldArticlesMsg); err != nil {
-		slog.Debug("While sending Old Articles Word Count Batch message", "err", err)
+	if err := w.sendToOldAverager(msg.ClientID, *oldArticlesMsg); err != nil {
 		return err
 	}
 
@@ -142,8 +154,7 @@ func (w *YearSplitterWorker) handleWordCount(msg middleware.Message) error {
 		slog.Debug("While creating New Articles Word Count Batch message", "err", err)
 		return err
 	}
-	if err := w.outputQueueNew.Send(*newArticlesMsg); err != nil {
-		slog.Debug("While sending New Articles Word Count Batch message", "err", err)
+	if err := w.sendToAboveAverageFilter(msg.ClientID, *newArticlesMsg); err != nil {
 		return err
 	}
 
@@ -158,11 +169,12 @@ func (w *YearSplitterWorker) handleEOF(msg middleware.Message) error {
 		slog.Debug("While creating EOF message", "err", err)
 		return err
 	}
-	if err := w.outputQueueOld.Send(*eofMessage); err != nil {
+
+	if err := w.sendToOldAverager(msg.ClientID, *eofMessage); err != nil {
 		slog.Debug("While sending EOF message", "err", err)
 		return err
 	}
-	if err := w.outputQueueNew.Send(*eofMessage); err != nil {
+	if err := w.sendToAboveAverageFilter(msg.ClientID, *eofMessage); err != nil {
 		slog.Debug("While sending EOF message", "err", err)
 		return err
 	}
@@ -189,4 +201,24 @@ func splitByYear(wordCountBatch generic.Batch[*messages.WordCount]) (generic.Bat
 		}
 	}
 	return oldArticlesWordCount, newArticlesWordCount
+}
+
+func (w *YearSplitterWorker) sendToOldAverager(clientID uint64, msg middleware.Message) error {
+	targetNode := utils.GetTargetNode(clientID, w.oldArticlesAveragerAmount)
+	routingKey := utils.GenerateRoutingKey(w.oldArticlesAveragerPrefix, targetNode)
+	if err := w.outputExchangeOld.SendToKey(msg, routingKey); err != nil {
+		slog.Debug("While sending Old Articles Word Count Batch message", "err", err)
+		return err
+	}
+	return nil
+}
+
+func (w *YearSplitterWorker) sendToAboveAverageFilter(clientID uint64, msg middleware.Message) error {
+	targetNode := utils.GetTargetNode(clientID, w.aboveAverageFilterAmount)
+	routingKey := utils.GenerateRoutingKey(w.aboveAverageFilterPrefix, targetNode)
+	if err := w.outputExchangeNew.SendToKey(msg, routingKey); err != nil {
+		slog.Debug("While sending New Articles Word Count Batch message", "err", err)
+		return err
+	}
+	return nil
 }

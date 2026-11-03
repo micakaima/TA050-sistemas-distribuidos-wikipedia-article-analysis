@@ -17,19 +17,20 @@ import (
 )
 
 type AboveAverageFilterConfig struct {
-	MomHost           string
-	MomPort           int
-	DataInputQueue    string
-	AverageInputQueue string
-	OutputQueue       string
+	Id                              int
+	MomHost                         string
+	MomPort                         int
+	OutputQueue                     string
+	AboveAverageFilterPrefixData    string
+	AboveAverageFilterPrefixAverage string
 }
 
 type AboveAverageFilterWorker struct {
-	dataInputQueue    middleware.Middleware
-	averageInputQueue middleware.Middleware
-	outputQueue       middleware.Middleware
-	clientStates      map[uint64]*ClientState
-	lock              sync.Mutex
+	dataInputExchange    middleware.Middleware
+	averageInputExchange middleware.Middleware
+	outputQueue          middleware.Middleware
+	clientStates         map[uint64]*ClientState
+	lock                 sync.Mutex
 }
 
 type ClientState struct {
@@ -42,27 +43,31 @@ type ClientState struct {
 func New(config AboveAverageFilterConfig) (*AboveAverageFilterWorker, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
-	dataInputQueue, err := middleware.CreateQueueMiddleware(config.DataInputQueue, connSettings)
+	dataInputExchangeRoutingKey := []string{utils.GenerateRoutingKey(config.AboveAverageFilterPrefixData, config.Id)}
+	dataInputExchange, err := middleware.CreateExchangeMiddleware(config.AboveAverageFilterPrefixData, dataInputExchangeRoutingKey, connSettings)
 	if err != nil {
 		return nil, err
 	}
-	averageInputQueue, err := middleware.CreateQueueMiddleware(config.AverageInputQueue, connSettings)
+
+	averageInputExchangeRoutingKey := []string{utils.GenerateRoutingKey(config.AboveAverageFilterPrefixAverage, config.Id)}
+	averageInputExchange, err := middleware.CreateExchangeMiddleware(config.AboveAverageFilterPrefixAverage, averageInputExchangeRoutingKey, connSettings)
 	if err != nil {
-		dataInputQueue.Close()
+		dataInputExchange.Close()
 		return nil, err
 	}
+
 	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
 	if err != nil {
-		dataInputQueue.Close()
-		averageInputQueue.Close()
+		dataInputExchange.Close()
+		dataInputExchange.Close()
 		return nil, err
 	}
 	return &AboveAverageFilterWorker{
-		dataInputQueue:    dataInputQueue,
-		averageInputQueue: averageInputQueue,
-		outputQueue:       outputQueue,
-		clientStates:      map[uint64]*ClientState{},
-		lock:              sync.Mutex{},
+		dataInputExchange:    dataInputExchange,
+		averageInputExchange: averageInputExchange,
+		outputQueue:          outputQueue,
+		clientStates:         map[uint64]*ClientState{},
+		lock:                 sync.Mutex{},
 	}, nil
 }
 
@@ -73,12 +78,12 @@ func (w *AboveAverageFilterWorker) Run() {
 	var wg sync.WaitGroup
 
 	utils.SpawnWithWG(&wg, func() {
-		w.dataInputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
+		w.dataInputExchange.StartConsuming(func(msg middleware.Message, ack, nack func()) {
 			w.handleDataMessage(msg, ack, nack)
 		})
 	})
 	utils.SpawnWithWG(&wg, func() {
-		w.averageInputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
+		w.averageInputExchange.StartConsuming(func(msg middleware.Message, ack, nack func()) {
 			w.handleAverageMessage(msg, ack, nack)
 		})
 	})
@@ -94,8 +99,8 @@ func (w *AboveAverageFilterWorker) handleSignals(done chan struct{}) {
 		select {
 		case <-signals:
 			slog.Info("Graceful shutdown started...")
-			w.dataInputQueue.StopConsuming()
-			w.averageInputQueue.StopConsuming()
+			w.dataInputExchange.StopConsuming()
+			w.averageInputExchange.StopConsuming()
 		case <-done:
 			return
 		}
@@ -103,11 +108,11 @@ func (w *AboveAverageFilterWorker) handleSignals(done chan struct{}) {
 }
 
 func (w *AboveAverageFilterWorker) shutdown() {
-	if err := w.dataInputQueue.Close(); err != nil {
-		slog.Error("While closing data input queue", "err", err)
+	if err := w.dataInputExchange.Close(); err != nil {
+		slog.Error("While closing data input exchange", "err", err)
 	}
-	if err := w.averageInputQueue.Close(); err != nil {
-		slog.Error("While closing average input queue", "err", err)
+	if err := w.averageInputExchange.Close(); err != nil {
+		slog.Error("While closing average input exchange", "err", err)
 	}
 	if err := w.outputQueue.Close(); err != nil {
 		slog.Error("While closing output queue", "err", err)
