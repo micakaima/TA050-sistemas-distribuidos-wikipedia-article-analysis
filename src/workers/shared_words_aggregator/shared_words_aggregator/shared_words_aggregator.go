@@ -9,6 +9,7 @@ import (
 
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
+	qresults "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/querys_results"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
@@ -151,15 +152,35 @@ func (w *SharedWordsAggregatorWorker) handleEOF(msg middleware.Message) error {
 	slog.Info("Received EOF message")
 
 	partialWords := w.buildPartial(msg.ClientID)
-	partial := messages.SharedWordsPartial{Words: partialWords}
-	partialMsg, err := middleware.NewMessage(msg.ClientID, messages.SharedWordsPartialCode, &partial)
-	if err != nil {
-		slog.Debug("While creating Shared Words Partial message", "err", err)
-		return err
+	const batchSize = 1000
+	wordsBatch := qresults.NewEmptySharedWordBatch(batchSize)
+	for word := range partialWords {
+		wordsBatch.Add(&qresults.SharedWord{Word: word})
+		if wordsBatch.Len() >= batchSize {
+			result := qresults.Q3Result{ResultWords: wordsBatch}
+			resultMsg, err := middleware.NewMessage(msg.ClientID, messages.Q3ResultCode, &result)
+			if err != nil {
+				slog.Debug("While creating Q3 result message", "err", err)
+				return err
+			}
+			if err := w.outputQueue.Send(*resultMsg); err != nil {
+				slog.Debug("While sending Q3 result message", "err", err)
+				return err
+			}
+			wordsBatch = qresults.NewEmptySharedWordBatch(batchSize)
+		}
 	}
-	if err := w.outputQueue.Send(*partialMsg); err != nil {
-		slog.Debug("While sending Shared Words Partial message", "err", err)
-		return err
+	if wordsBatch.Len() > 0 || len(partialWords) == 0 {
+		result := qresults.Q3Result{ResultWords: wordsBatch}
+		resultMsg, err := middleware.NewMessage(msg.ClientID, messages.Q3ResultCode, &result)
+		if err != nil {
+			slog.Debug("While creating Q3 result message", "err", err)
+			return err
+		}
+		if err := w.outputQueue.Send(*resultMsg); err != nil {
+			slog.Debug("While sending Q3 result message", "err", err)
+			return err
+		}
 	}
 
 	eof := messages.EofMsg{}
