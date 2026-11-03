@@ -46,6 +46,7 @@ func loadConfig() (aggregator.Config[*qresults.English2020Article], error) {
 		StorageName:     "q1",
 		QueryCode:       qresults.Q1Code,
 		ExpectedMsgCode: messages.Q1ResultCode,
+		ExpectedEOFs:    1,
 		Handler:         &qresults.Q1Result{},
 	}, nil
 }

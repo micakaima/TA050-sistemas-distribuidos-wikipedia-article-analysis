@@ -8,6 +8,7 @@ import (
 	"sync"
 	"syscall"
 
+	aggregator "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic/aggregator"
 	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
@@ -37,8 +38,8 @@ type Worker struct {
 	q2Input    middleware.Middleware
 	q3EofInput middleware.Middleware
 	output     middleware.Middleware
-	q1Storage  *Storage
-	q2Storage  *Storage
+	q1Storage  *aggregator.Storage
+	q2Storage  *aggregator.Storage
 
 	mu      sync.Mutex
 	clients map[uint64]*clientState
@@ -75,8 +76,8 @@ func New(config Config) (*Worker, error) {
 		q2Input:    q2Input,
 		q3EofInput: q3EofInput,
 		output:     output,
-		q1Storage:  NewStorage("q1", config.StorageDir),
-		q2Storage:  NewStorage("q2", config.StorageDir),
+		q1Storage:  aggregator.NewStorage("q1", config.StorageDir),
+		q2Storage:  aggregator.NewStorage("q2", config.StorageDir),
 		clients:    make(map[uint64]*clientState),
 	}, nil
 }

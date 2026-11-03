@@ -23,6 +23,7 @@ type Config[T generic.SerializableMessage] struct {
 	StorageName     string
 	QueryCode       qresults.QueryResultCode
 	ExpectedMsgCode messages.InnerMsgCode
+	ExpectedEOFs    int
 	Handler         qresults.QueryResultHandler[T]
 }
 
@@ -32,10 +33,12 @@ type Aggregator[T generic.SerializableMessage] struct {
 	storage         *Storage
 	queryCode       qresults.QueryResultCode
 	expectedMsgCode messages.InnerMsgCode
+	expectedEOFs    int
 	handler         qresults.QueryResultHandler[T]
 
-	mu         sync.Mutex
-	clientDone map[uint64]bool
+	mu           sync.Mutex
+	eofsReceived map[uint64]int
+	clientDone   map[uint64]bool
 }
 
 func New[T generic.SerializableMessage](config Config[T]) (*Aggregator[T], error) {
@@ -52,13 +55,20 @@ func New[T generic.SerializableMessage](config Config[T]) (*Aggregator[T], error
 		return nil, err
 	}
 
+	expectedEOFs := config.ExpectedEOFs
+	if expectedEOFs <= 0 {
+		expectedEOFs = 1
+	}
+
 	return &Aggregator[T]{
 		inputQueue:      inputQueue,
 		outputQueue:     outputQueue,
 		storage:         NewStorage(config.StorageName, config.StorageDir),
 		queryCode:       config.QueryCode,
 		expectedMsgCode: config.ExpectedMsgCode,
+		expectedEOFs:    expectedEOFs,
 		handler:         config.Handler,
+		eofsReceived:    make(map[uint64]int),
 		clientDone:      make(map[uint64]bool),
 	}, nil
 }
@@ -93,10 +103,17 @@ func (w *Aggregator[T]) shutdown() {
 
 func (w *Aggregator[T]) handleMessage(msg middleware.Message, ack, nack func()) {
 	if msg.MsgCode == messages.EOFCode {
-		if err := w.finish(msg.ClientID); err != nil {
-			slog.Error("While finishing", "err", err)
-			nack()
-			return
+		shouldFinish := utils.WithLockAndReturn(&w.mu, func() bool {
+			w.eofsReceived[msg.ClientID]++
+			slog.Debug("Aggregator received EOF", "client", msg.ClientID, "eofs", w.eofsReceived[msg.ClientID], "expected", w.expectedEOFs)
+			return w.eofsReceived[msg.ClientID] >= w.expectedEOFs
+		})
+		if shouldFinish {
+			if err := w.finish(msg.ClientID); err != nil {
+				slog.Error("While finishing", "err", err)
+				nack()
+				return
+			}
 		}
 		ack()
 		return
@@ -140,12 +157,18 @@ func (w *Aggregator[T]) finish(clientID uint64) error {
 
 	batchBytes, err := w.storage.Read(clientID)
 	if err != nil {
+		utils.WithLock(&w.mu, func() {
+			delete(w.clientDone, clientID)
+		})
 		return err
 	}
 	resultBatch := w.handler.NewEmptyBatch(0)
 	for _, b := range batchBytes {
 		result, err := w.handler.DeserializeArticleBatch(b)
 		if err != nil {
+			utils.WithLock(&w.mu, func() {
+				delete(w.clientDone, clientID)
+			})
 			return err
 		}
 		resultBatch.Merge(*result)
@@ -153,6 +176,9 @@ func (w *Aggregator[T]) finish(clientID uint64) error {
 	finalResult := w.handler.BuildQueryResult(resultBatch)
 
 	if err := w.publishQueryResult(clientID, finalResult); err != nil {
+		utils.WithLock(&w.mu, func() {
+			delete(w.clientDone, clientID)
+		})
 		return err
 	}
 
@@ -160,6 +186,7 @@ func (w *Aggregator[T]) finish(clientID uint64) error {
 
 	utils.WithLock(&w.mu, func() {
 		delete(w.clientDone, clientID)
+		delete(w.eofsReceived, clientID)
 	})
 	return nil
 }

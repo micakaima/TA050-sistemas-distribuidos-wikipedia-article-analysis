@@ -46,6 +46,7 @@ func loadConfig() (aggregator.Config[*qresults.ImageArticle], error) {
 		StorageName:     "q2",
 		QueryCode:       qresults.Q2Code,
 		ExpectedMsgCode: messages.Q2ResultCode,
+		ExpectedEOFs:    1,
 		Handler:         &qresults.Q2Result{},
 	}, nil
 }

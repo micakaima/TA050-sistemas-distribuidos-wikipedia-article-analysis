@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	aggregator "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/workers/result_aggregator/result_aggregator"
+	aggregator "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/workers/result_aggregator/result_aggregator/result_aggregator"
 )
 
 func loadConfig() (aggregator.Config, error) {
