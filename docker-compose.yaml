@@ -122,11 +122,11 @@ services:
       dockerfile: src/workers/shared_words_aggregator/Dockerfile
     container_name: shared_words_aggregator_0
     depends_on:
-      - shared_words_joiner
+      - q3_aggregator
     environment:
       - ID=0
       - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
-      - OUTPUT_QUEUE=q3_partials_queue
+      - OUTPUT_QUEUE=q3_results_queue
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
 
@@ -136,28 +136,13 @@ services:
       dockerfile: src/workers/shared_words_aggregator/Dockerfile
     container_name: shared_words_aggregator_1
     depends_on:
-      - shared_words_joiner
+      - q3_aggregator
     environment:
       - ID=1
       - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
-      - OUTPUT_QUEUE=q3_partials_queue
+      - OUTPUT_QUEUE=q3_results_queue
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-
-  shared_words_joiner:
-    build:
-      context: .
-      dockerfile: src/workers/shared_words_joiner/Dockerfile
-    container_name: shared_words_joiner
-    depends_on:
-      - gateway
-    environment:
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - INPUT_QUEUE=q3_partials_queue
-      - OUTPUT_QUEUE=results_queue
-      - Q3_EOF_OUTPUT_QUEUE=q3_eof_queue
-      - SHARED_WORDS_AGGREGATOR_AMOUNT=2
 
   year_splitter:
     build:
@@ -309,7 +294,7 @@ services:
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - Q1_INPUT_QUEUE=q1_results_queue
+      - INPUT_QUEUE=q1_results_queue
       - OUTPUT_QUEUE=results_queue
       - STORAGE_DIR=/app/storage
   
@@ -325,6 +310,23 @@ services:
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - Q1_INPUT_QUEUE=q2_results_queue
+      - INPUT_QUEUE=q2_results_queue
       - OUTPUT_QUEUE=results_queue
       - STORAGE_DIR=/app/storage
+
+  q3_aggregator:
+    build:
+      context: .
+      dockerfile: src/workers/result_aggregator/q3_result_aggregator/Dockerfile
+    container_name: q3_aggregator
+    depends_on:
+      - gateway
+    volumes:
+      - ./data/storage:/app/storage
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE=q3_results_queue
+      - OUTPUT_QUEUE=results_queue
+      - STORAGE_DIR=/app/storage
+      - SHARED_WORDS_AGGREGATOR_AMOUNT=2
