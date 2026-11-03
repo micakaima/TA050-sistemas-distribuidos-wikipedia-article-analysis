@@ -22,7 +22,7 @@ type English2020Article struct {
 }
 
 func (article *English2020Article) ToRow() string {
-	return fmt.Sprintf("%s,%s,%d\n", article.ArticleID, article.DateModified, article.URL)
+	return fmt.Sprintf("%s,%d,%s\n", article.ArticleID, article.DateModified, article.URL)
 }
 
 func (article *English2020Article) ToBytes() ([]byte, error) {
