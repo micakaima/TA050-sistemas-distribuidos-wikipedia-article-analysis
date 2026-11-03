@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -75,7 +76,38 @@ func solveQ3ToQ5(records []record.Record, numRows int, outputDir string) {
 	rawAbstracts := obtainRawAbstracts(records, numRows)
 	cleanVocabularies := obtainCleanVocabularies(rawAbstracts, numRows)
 
+	solveQ3(cleanVocabularies, outputDir)
 	solveQ5(cleanVocabularies, numRows, outputDir)
+}
+
+func solveQ3(cleanVocabularies []messages.ExtractedVocabulary, outputDir string) {
+	enWords := make(map[string]struct{})
+	frWords := make(map[string]struct{})
+	for _, v := range cleanVocabularies {
+		var target map[string]struct{}
+		switch v.InLanguage {
+		case "en":
+			target = enWords
+		case "fr":
+			target = frWords
+		default:
+			continue
+		}
+		for word := range v.Vocabulary {
+			target[word] = struct{}{}
+		}
+	}
+
+	sharedWords := make([]string, 0)
+	for word := range enWords {
+		if _, ok := frWords[word]; ok {
+			sharedWords = append(sharedWords, word)
+		}
+	}
+	sort.Strings(sharedWords)
+
+	outputPath := filepath.Join(outputDir, QUERY3_OUTPUT_FILENAME)
+	saveQ3Result(outputPath, sharedWords)
 }
 
 func solveQ5(cleanVocabularies []messages.ExtractedVocabulary, numRows int, outputDir string) {
@@ -294,6 +326,22 @@ func saveQ2Result(path string, bio2020Articles []qresult.ImageArticle) {
 	for _, a := range bio2020Articles {
 		if _, err := file.WriteString(a.ToRow()); err != nil {
 			fmt.Println("[ERROR] While writing Q2 result row")
+			return
+		}
+	}
+}
+
+func saveQ3Result(path string, sharedWords []string) {
+	file, err := createPath(path)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer file.Close()
+
+	for _, w := range sharedWords {
+		if _, err := file.WriteString(w + "\n"); err != nil {
+			fmt.Println("[ERROR] While writing Q3 result row")
 			return
 		}
 	}
