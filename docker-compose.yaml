@@ -201,14 +201,14 @@ services:
       dockerfile: src/workers/above_average_filter/Dockerfile
     container_name: above_average_filter_0
     depends_on:
-      - gateway
+      - q5_aggregator
     environment:
       - ID=0
       - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
       - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - OUTPUT_QUEUE=results_queue
+      - OUTPUT_QUEUE=q5_results_queue
 
   above_average_filter_1:
     build:
@@ -216,14 +216,14 @@ services:
       dockerfile: src/workers/above_average_filter/Dockerfile
     container_name: above_average_filter_1
     depends_on:
-      - gateway
+      - q5_aggregator
     environment:
       - ID=1
       - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
       - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - OUTPUT_QUEUE=results_queue
+      - OUTPUT_QUEUE=q5_results_queue
 
   year_filter:
     build:
@@ -327,6 +327,23 @@ services:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - INPUT_QUEUE=q3_results_queue
+      - OUTPUT_QUEUE=results_queue
+      - STORAGE_DIR=/app/storage
+      - SHARED_WORDS_AGGREGATOR_AMOUNT=2
+
+  q5_aggregator:
+    build:
+      context: .
+      dockerfile: src/workers/result_aggregator/q5_result_aggregator/Dockerfile
+    container_name: q5_aggregator
+    depends_on:
+      - gateway
+    volumes:
+      - ./data/storage:/app/storage
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE=q5_results_queue
       - OUTPUT_QUEUE=results_queue
       - STORAGE_DIR=/app/storage
       - SHARED_WORDS_AGGREGATOR_AMOUNT=2
