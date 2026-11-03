@@ -297,21 +297,34 @@ services:
       - INPUT_QUEUE=image_download_queue
       - OUTPUT_QUEUE=q2_results_queue
 
-  result_aggregator:
+  q1_aggregator:
     build:
       context: .
-      dockerfile: src/workers/result_aggregator/Dockerfile
-    container_name: result_aggregator
+      dockerfile: src/workers/result_aggregator/q1_result_aggregator/Dockerfile
+    container_name: q1_aggregator
     depends_on:
       - gateway
-      - shared_words_joiner
     volumes:
       - ./data/storage:/app/storage
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - Q1_INPUT_QUEUE=q1_results_queue
-      - Q2_INPUT_QUEUE=q2_results_queue
-      - Q3_EOF_INPUT_QUEUE=q3_eof_queue
+      - OUTPUT_QUEUE=results_queue
+      - STORAGE_DIR=/app/storage
+  
+  q2_aggregator:
+    build:
+      context: .
+      dockerfile: src/workers/result_aggregator/q2_result_aggregator/Dockerfile
+    container_name: q2_aggregator
+    depends_on:
+      - gateway
+    volumes:
+      - ./data/storage:/app/storage
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - Q1_INPUT_QUEUE=q2_results_queue
       - OUTPUT_QUEUE=results_queue
       - STORAGE_DIR=/app/storage
