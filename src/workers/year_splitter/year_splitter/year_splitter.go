@@ -186,7 +186,7 @@ func splitByYear(wordCountBatch generic.Batch[*messages.WordCount]) (generic.Bat
 	newArticlesWordCount := messages.NewEmptyNewArticleWordCountBatch(0)
 
 	for _, a := range wordCountBatch.Items {
-		year := time.UnixMilli(a.DateModified).Year()
+		year := time.UnixMicro(a.DateModified).Year()
 		if year <= SPLITTER_YEAR {
 			oldArticlesWordCount.Add(&messages.OldArticleWordCount{
 				ArticleID: a.ArticleID,
