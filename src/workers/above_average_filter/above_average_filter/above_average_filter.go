@@ -206,6 +206,14 @@ func (w *AboveAverageFilterWorker) handleAverageMessage(msg middleware.Message, 
 			nack()
 			return
 		}
+		if err := w.sendEOF(msg.ClientID); err != nil {
+			slog.Error("While sending EOF message", "err", err)
+			nack()
+			return
+		}
+		utils.WithLock(&w.lock, func() {
+			delete(w.clientStates, msg.ClientID)
+		})
 	}
 	ack()
 }
@@ -251,20 +259,24 @@ func (w *AboveAverageFilterWorker) sendQuery5Result(clientID uint64) error {
 		slog.Debug("While filtering articles with above average word count", "err", err)
 		return err
 	}
+	resultMessage, err := middleware.NewMessage(clientID, messages.Q5ResultCode, &aboveAverageArticles)
+	if err != nil || w.outputQueue.Send(*resultMessage) != nil {
+		return err
+	}
 
-	q5Result := qresult.Q5Result{ResultArticles: aboveAverageArticles}
-	q5ResultMsg, err := middleware.NewMessage(clientID, messages.ResultCode, &q5Result)
+	return nil
+}
+
+func (w *AboveAverageFilterWorker) sendEOF(clientID uint64) error {
+	eof := messages.EofMsg{}
+	eofMsg, err := middleware.NewMessage(clientID, messages.EOFCode, &eof)
 	if err != nil {
-		slog.Debug("While creating Q5 Result message", "err", err)
+		slog.Debug("While creating EOF message", "err", err)
 		return err
 	}
-	if err := w.outputQueue.Send(*q5ResultMsg); err != nil {
-		slog.Debug("While sending Q5 Result message", "err", err)
+	if err := w.outputQueue.Send(*eofMsg); err != nil {
+		slog.Debug("While sending EOF message", "err", err)
 		return err
 	}
-
-	utils.WithLock(&w.lock, func() {
-		delete(w.clientStates, clientID)
-	})
 	return nil
 }

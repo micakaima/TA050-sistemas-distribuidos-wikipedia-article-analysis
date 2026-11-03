@@ -21,4 +21,5 @@ const (
 	SharedWordCandidateCode
 	SharedWordsPartialCode
 	Q3ResultCode
+	Q5ResultCode
 )

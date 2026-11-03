@@ -116,3 +116,28 @@ func (queryResult *Q5Result) WriteToFile(path string) error {
 	}
 	return nil
 }
+
+func (queryResult *Q5Result) DeserializeQueryResult(data []byte) (generic.Batch[*AboveAverageArticle], error) {
+	q5Result, err := Q5ResultFromBytes(data)
+	if err != nil {
+		return generic.Batch[*AboveAverageArticle]{}, err
+	}
+	return q5Result.ResultArticles, nil
+}
+
+func (queryResult *Q5Result) NewEmptyBatch(len int) generic.Batch[*AboveAverageArticle] {
+	return NewEmptyAboveAverageArticleBatch(len)
+}
+
+func (queryResult *Q5Result) DeserializeArticleBatch(data []byte) (*generic.Batch[*AboveAverageArticle], error) {
+	return AboveAverageArticleBatchFromBytes(data)
+}
+
+func (queryResult *Q5Result) BuildQueryResult(batch generic.Batch[*AboveAverageArticle]) *QueryResult {
+	result := Q5Result{ResultArticles: batch}
+	payload, _ := result.ToBytes()
+	return &QueryResult{
+		QueryCode:     Q5Code,
+		ResultPayload: payload,
+	}
+}
