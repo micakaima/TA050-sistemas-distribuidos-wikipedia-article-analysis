@@ -202,6 +202,12 @@ func SerializeSet(s map[string]struct{}) []byte {
 	return result
 }
 
+func SerializeImageBytes(imgBytes []byte) []byte {
+	result := SerializeUint32(uint32(len(imgBytes)))
+	result = append(result, imgBytes...)
+	return result
+}
+
 // Deserializa una fila / campo con subcampos crudo.
 // Primero incluye la cantidad de columnas / subcampos y luego, en base a esta cantidad,
 // por cada subcampo se incluye su nombre (key), y se deserializa su valor correspondiente.

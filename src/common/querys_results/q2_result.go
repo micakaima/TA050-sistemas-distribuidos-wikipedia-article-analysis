@@ -31,7 +31,7 @@ func (article *ImageArticle) ToBytes() ([]byte, error) {
 	result := utils.SerializeString(article.ArticleID)
 	result = append(result, utils.SerializeString(article.Name)...)
 	result = append(result, utils.SerializeString(article.URL)...)
-	result = append(result, utils.SerializeBytes(article.ImageBytes)...)
+	result = append(result, utils.SerializeImageBytes(article.ImageBytes)...)
 	result = append(result, utils.SerializeString(article.Error)...)
 	return result, nil
 }
@@ -49,7 +49,7 @@ func ImageArticleFromBytes(data []byte, offset *int) (*ImageArticle, error) {
 	if err != nil {
 		return nil, err
 	}
-	imageBytes, err := utils.ReadBytesFromBytes(data, offset)
+	imageBytes, err := utils.ReadImageBytesFromBytes(data, offset)
 	if err != nil {
 		return nil, err
 	}

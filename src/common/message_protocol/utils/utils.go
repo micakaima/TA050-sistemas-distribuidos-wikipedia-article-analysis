@@ -119,6 +119,19 @@ func ReadByteFromBytes(data []byte, offset *int) (byte, error) {
 	return b, nil
 }
 
+func ReadImageBytesFromBytes(data []byte, offset *int) ([]byte, error) {
+	length, err := ReadUint32FromBytes(data, offset)
+	if err != nil {
+		return []byte{}, err
+	}
+	if *offset+int(length) > len(data) {
+		return []byte{}, fmt.Errorf(errors.ValueTooShortError)
+	}
+	imgBytes := data[*offset : *offset+int(length)]
+	*offset += int(length)
+	return imgBytes, nil
+}
+
 func GetKeyAsString(m map[string]any, key string) string {
 	val, ok := m[key]
 	if !ok || val == nil {
