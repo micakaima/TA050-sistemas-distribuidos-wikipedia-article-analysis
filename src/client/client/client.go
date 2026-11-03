@@ -252,6 +252,13 @@ func (client *Client) saveResult(queryResult qresult.QueryResult) error {
 		}
 		resultWriter = q3Result
 
+	case qresult.Q4Code:
+		q4Result, err := qresult.Q4ResultFromBytes(queryResult.ResultPayload)
+		if err != nil {
+			return err
+		}
+		resultWriter = q4Result
+
 	case qresult.Q5Code:
 		q5Result, err := qresult.Q5ResultFromBytes(queryResult.ResultPayload)
 		if err != nil {
