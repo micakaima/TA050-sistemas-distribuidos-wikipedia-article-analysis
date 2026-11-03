@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
 )
+
+const DATE_FORMAT = "02-01-2006"
 
 // Representa el resultado final de la query 1. Implementa la interfaz WritableResult.
 type Q1Result struct {
@@ -22,7 +25,9 @@ type English2020Article struct {
 }
 
 func (article *English2020Article) ToRow() string {
-	return fmt.Sprintf("%s,%d,%s\n", article.ArticleID, article.DateModified, article.URL)
+	// Transformamos el campo DateModified a un formato legible.
+	date := time.UnixMilli(article.DateModified).Format(DATE_FORMAT)
+	return fmt.Sprintf("%s,%s,%s\n", article.ArticleID, date, article.URL)
 }
 
 func (article *English2020Article) ToBytes() ([]byte, error) {
