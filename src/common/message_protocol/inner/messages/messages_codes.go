@@ -23,4 +23,5 @@ const (
 	Q3ResultCode
 	PartialTopCandidateCode
 	TopWordsPartialCode
+	Q5ResultCode
 )
