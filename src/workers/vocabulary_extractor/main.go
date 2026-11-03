@@ -26,11 +26,6 @@ func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
 		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "INPUT_QUEUE")
 	}
 
-	outputQueueQ4 := os.Getenv("OUTPUT_QUEUE_Q4")
-	if outputQueueQ4 == "" {
-		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE_Q4")
-	}
-
 	outputQueueQ5 := os.Getenv("OUTPUT_QUEUE_Q5")
 	if outputQueueQ5 == "" {
 		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE_Q5")
@@ -46,14 +41,25 @@ func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
 		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "SHARED_WORDS_AGGREGATOR_PREFIX")
 	}
 
+	partialTopAggregatorAmount, err := strconv.Atoi(os.Getenv("PARTIAL_TOP_AGGREGATOR_AMOUNT"))
+	if err != nil {
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "PARTIAL_TOP_AGGREGATOR_AMOUNT")
+	}
+
+	partialTopAggregatorPrefix := os.Getenv("PARTIAL_TOP_AGGREGATOR_PREFIX")
+	if partialTopAggregatorPrefix == "" {
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "PARTIAL_TOP_AGGREGATOR_PREFIX")
+	}
+
 	return vextractor.VocabularyExtractorConfig{
 		MomHost:                     momHost,
 		MomPort:                     momPort,
 		InputQueue:                  inputQueue,
-		OutputQueueQ4:               outputQueueQ4,
 		OutputQueueQ5:               outputQueueQ5,
 		SharedWordsAggregatorAmount: sharedWordsAggregatorAmount,
 		SharedWordsAggregatorPrefix: sharedWordsAggregatorPrefix,
+		PartialTopAggregatorAmount:  partialTopAggregatorAmount,
+		PartialTopAggregatorPrefix:  partialTopAggregatorPrefix,
 	}, nil
 }
 
