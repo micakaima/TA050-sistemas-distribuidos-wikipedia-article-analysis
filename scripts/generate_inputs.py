@@ -12,6 +12,12 @@ NUM_CLIENTS=1
 EN_FILES_SAMPLE_AMOUNT=1
 FR_FILES_SAMPLE_AMOUNT=1
 
+# Permite generar archivos parquet de input para un cliente/s.
+#   - Recibe como argumento '-en' la cantidad de archivos parquet en ingles a descargar.
+#   - Recibe como argumento '-fr' la cantidad de archivos parquet en frances a descargar.
+#   - Recibe como argumento '-c' el 'ID' del cliente/dataset (ej. '-c 0' genera el directorio input/input_0).
+#   - Si no se recibe alguno de estos argumentos, el valor default es siempre 1.
+# NOTA: Al ejecutar este script, se borran todos los inputs que habian en data/input.
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Distributor of datasets between clients")
     parser.add_argument("-en", "--en", type=int, default=EN_FILES_SAMPLE_AMOUNT, help="English files sample amount")

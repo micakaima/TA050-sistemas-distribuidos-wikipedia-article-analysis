@@ -97,10 +97,12 @@ func Q1ResultFromBytes(data []byte) (*Q1Result, error) {
 
 func (queryResult *Q1Result) WriteToFile(path string) error {
 	dir := filepath.Dir(path)
+	if err := os.RemoveAll(path); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-
 	file, err := os.Create(path)
 	if err != nil {
 		return err

@@ -98,10 +98,12 @@ func Q5ResultFromBytes(data []byte) (*Q5Result, error) {
 
 func (queryResult *Q5Result) WriteToFile(path string) error {
 	dir := filepath.Dir(path)
+	if err := os.RemoveAll(path); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-
 	file, err := os.Create(path)
 	if err != nil {
 		return err
