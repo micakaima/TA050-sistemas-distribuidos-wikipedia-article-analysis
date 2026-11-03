@@ -21,4 +21,6 @@ const (
 	SharedWordCandidateCode
 	SharedWordsPartialCode
 	Q3ResultCode
+	PartialTopCandidateCode
+	TopWordsPartialCode
 )
