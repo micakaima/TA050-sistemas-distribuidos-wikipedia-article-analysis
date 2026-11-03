@@ -8,8 +8,9 @@ import (
 )
 
 type ClientState struct {
-	Conn     net.Conn
-	ClientID uint64
+	Conn         net.Conn
+	ClientID     uint64
+	EOFsReceived int
 }
 
 type ClientRegistry struct {
@@ -55,6 +56,17 @@ func (registry *ClientRegistry) WithLock(action func(map[uint64]ClientState)) {
 	registry.mutex.Lock()
 	defer registry.mutex.Unlock()
 	action(registry.clients)
+}
+
+func (registry *ClientRegistry) AddEOF(id uint64) int {
+	registry.mutex.Lock()
+	defer registry.mutex.Unlock()
+	if client, ok := registry.clients[id]; ok {
+		client.EOFsReceived++
+		registry.clients[id] = client
+		return client.EOFsReceived
+	}
+	return 0
 }
 
 func generateClientId() uint64 {

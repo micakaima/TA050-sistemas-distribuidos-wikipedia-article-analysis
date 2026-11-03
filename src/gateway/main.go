@@ -47,6 +47,7 @@ func loadConfig() (gateway.GatewayConfig, error) {
 		OutputQueueName: outputQueueName,
 		MomHost:         momHost,
 		MomPort:         momPort,
+		ExpectedQueries: 3,
 	}, nil
 }
 

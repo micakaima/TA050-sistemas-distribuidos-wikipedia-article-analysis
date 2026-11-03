@@ -25,15 +25,17 @@ type GatewayConfig struct {
 	OutputQueueName string
 	MomHost         string
 	MomPort         int
+	ExpectedQueries int
 }
 
 type Gateway struct {
-	registry    clientregistry.ClientRegistry
-	inputQueue  middleware.Middleware
-	outputQueue middleware.Middleware
-	listener    net.Listener
-	wg          sync.WaitGroup
-	running     atomic.Bool
+	registry        clientregistry.ClientRegistry
+	inputQueue      middleware.Middleware
+	outputQueue     middleware.Middleware
+	listener        net.Listener
+	expectedQueries int
+	wg              sync.WaitGroup
+	running         atomic.Bool
 }
 
 func NewGateway(config GatewayConfig) (*Gateway, error) {
@@ -58,10 +60,11 @@ func NewGateway(config GatewayConfig) (*Gateway, error) {
 	}
 
 	gateway := &Gateway{
-		registry:    clientregistry.NewClientRegistry(),
-		inputQueue:  inputQueue,
-		outputQueue: outputQueue,
-		listener:    listener,
+		registry:        clientregistry.NewClientRegistry(),
+		inputQueue:      inputQueue,
+		outputQueue:     outputQueue,
+		listener:        listener,
+		expectedQueries: config.ExpectedQueries,
 	}
 	gateway.running.Store(true)
 	return gateway, nil
@@ -242,19 +245,23 @@ func (gateway *Gateway) handleQueryResult(msg middleware.Message, clientState cl
 }
 
 func (gateway *Gateway) handleResultEOF(msg middleware.Message, clientState clientregistry.ClientState, ack func(), nack func()) {
-	if err := external.WriteEOF(clientState.Conn); err != nil {
-		slog.Debug("While writing EOF message", "err", err)
-		return
+	eofs := gateway.registry.AddEOF(msg.ClientID)
+	slog.Debug("Received EOF message, waiting for more results", "eofs", eofs, "expected", gateway.expectedQueries)
+	if eofs >= gateway.expectedQueries {
+		if err := external.WriteEOF(clientState.Conn); err != nil {
+			slog.Debug("While writing EOF message", "err", err)
+			return
+		}
+		msgType, err := external.ReadMsgCode(clientState.Conn)
+		if err != nil {
+			slog.Debug("While reading message type", "err", err)
+			return
+		}
+		if msgType != external.Ack {
+			slog.Debug("Unexpected message type", "err", err)
+			return
+		}
+		gateway.registry.Remove(msg.ClientID)
 	}
-	msgType, err := external.ReadMsgCode(clientState.Conn)
-	if err != nil {
-		slog.Debug("While reading message type", "err", err)
-		return
-	}
-	if msgType != external.Ack {
-		slog.Debug("Unexpected message type", "err", err)
-		return
-	}
-	gateway.registry.Remove(msg.ClientID)
 	ack()
 }
