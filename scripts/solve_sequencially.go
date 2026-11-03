@@ -77,6 +77,7 @@ func solveQ3ToQ5(records []record.Record, numRows int, outputDir string) {
 	cleanVocabularies := obtainCleanVocabularies(rawAbstracts, numRows)
 
 	solveQ3(cleanVocabularies, outputDir)
+	solveQ4(cleanVocabularies, outputDir)
 	solveQ5(cleanVocabularies, numRows, outputDir)
 }
 
@@ -108,6 +109,32 @@ func solveQ3(cleanVocabularies []messages.ExtractedVocabulary, outputDir string)
 
 	outputPath := filepath.Join(outputDir, QUERY3_OUTPUT_FILENAME)
 	saveQ3Result(outputPath, sharedWords)
+}
+
+func solveQ4(cleanVocabularies []messages.ExtractedVocabulary, outputDir string) {
+	wordCounts := make(map[string]uint32)
+	for _, v := range cleanVocabularies {
+		for word := range v.Vocabulary {
+			wordCounts[word]++
+		}
+	}
+
+	topWords := make([]*qresult.WordFrequency, 0, len(wordCounts))
+	for word, count := range wordCounts {
+		topWords = append(topWords, &qresult.WordFrequency{Word: word, Count: count})
+	}
+	sort.Slice(topWords, func(i, j int) bool {
+		if topWords[i].Count != topWords[j].Count {
+			return topWords[i].Count > topWords[j].Count // count desc
+		}
+		return topWords[i].Word < topWords[j].Word // word asc
+	})
+	if len(topWords) > 20 {
+		topWords = topWords[:20]
+	}
+
+	outputPath := filepath.Join(outputDir, QUERY4_OUTPUT_FILENAME)
+	saveQ4Result(outputPath, topWords)
 }
 
 func solveQ5(cleanVocabularies []messages.ExtractedVocabulary, numRows int, outputDir string) {
@@ -342,6 +369,22 @@ func saveQ3Result(path string, sharedWords []string) {
 	for _, w := range sharedWords {
 		if _, err := file.WriteString(w + "\n"); err != nil {
 			fmt.Println("[ERROR] While writing Q3 result row")
+			return
+		}
+	}
+}
+
+func saveQ4Result(path string, topWords []*qresult.WordFrequency) {
+	file, err := createPath(path)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer file.Close()
+
+	for _, w := range topWords {
+		if _, err := file.WriteString(w.ToRow()); err != nil {
+			fmt.Println("[ERROR] While writing Q4 result row")
 			return
 		}
 	}
