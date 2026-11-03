@@ -3,6 +3,7 @@ package querysresults
 import (
 	"os"
 	"path/filepath"
+	"sort"
 
 	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
@@ -95,4 +96,32 @@ func (queryResult *Q3Result) WriteToFile(path string) error {
 		}
 	}
 	return nil
+}
+
+func (queryResult *Q3Result) DeserializeQueryResult(data []byte) (generic.Batch[*SharedWord], error) {
+	q3Result, err := Q3ResultFromBytes(data)
+	if err != nil {
+		return generic.Batch[*SharedWord]{}, err
+	}
+	return q3Result.ResultWords, nil
+}
+
+func (queryResult *Q3Result) NewEmptyBatch(len int) generic.Batch[*SharedWord] {
+	return NewEmptySharedWordBatch(len)
+}
+
+func (queryResult *Q3Result) DeserializeArticleBatch(data []byte) (*generic.Batch[*SharedWord], error) {
+	return SharedWordBatchFromBytes(data)
+}
+
+func (queryResult *Q3Result) BuildQueryResult(batch generic.Batch[*SharedWord]) *QueryResult {
+	sort.Slice(batch.Items, func(i, j int) bool {
+		return batch.Items[i].Word < batch.Items[j].Word
+	})
+	result := Q3Result{ResultWords: batch}
+	payload, _ := result.ToBytes()
+	return &QueryResult{
+		QueryCode:     Q3Code,
+		ResultPayload: payload,
+	}
 }
