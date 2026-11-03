@@ -40,3 +40,14 @@ func GetTargetNode(clientId uint64, amountNodes int) int {
 	hashValue := h.Sum64()
 	return int(hashValue % uint64(amountNodes))
 }
+
+// GetTargetNodeByWord mapea una palabra a un nodo 0..amount-1 de forma determinista.
+// Se usa para shardear los candidatos de Q3 por hash de palabra.
+func GetTargetNodeByWord(word string, amount int) int {
+	h := fnv.New64a()
+	h.Write([]byte(FIXED_SEED))
+	fmt.Fprintf(h, "-%s", word)
+
+	hashValue := h.Sum64()
+	return int(hashValue % uint64(amount))
+}

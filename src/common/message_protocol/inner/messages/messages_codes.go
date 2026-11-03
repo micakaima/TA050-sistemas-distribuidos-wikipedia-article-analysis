@@ -18,4 +18,6 @@ const (
 	ImageCandidateCode
 	Q1ResultCode
 	Q2ResultCode
+	SharedWordCandidateCode
+	SharedWordsPartialCode
 )
