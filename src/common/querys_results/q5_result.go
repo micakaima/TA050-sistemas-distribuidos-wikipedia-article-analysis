@@ -23,7 +23,7 @@ type AboveAverageArticle struct {
 }
 
 func (article *AboveAverageArticle) ToRow() string {
-	return fmt.Sprintf("%s,%s,%d", article.ArticleID, article.URL, article.WordCount)
+	return fmt.Sprintf("%s,%s,%d\n", article.ArticleID, article.URL, article.WordCount)
 }
 
 func (article *AboveAverageArticle) ToBytes() ([]byte, error) {

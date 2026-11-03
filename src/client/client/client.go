@@ -231,12 +231,27 @@ func (client *Client) saveResult(queryResult qresult.QueryResult) error {
 
 	var resultWriter qresult.WritableResult
 	switch queryResult.QueryCode {
+	case qresult.Q1Code:
+		q1Result, err := qresult.Q1ResultFromBytes(queryResult.ResultPayload)
+		if err != nil {
+			return err
+		}
+		resultWriter = q1Result
+
+	case qresult.Q2Code:
+		q2Result, err := qresult.Q2ResultFromBytes(queryResult.ResultPayload)
+		if err != nil {
+			return err
+		}
+		resultWriter = q2Result
+
 	case qresult.Q5Code:
 		q5Result, err := qresult.Q5ResultFromBytes(queryResult.ResultPayload)
 		if err != nil {
 			return err
 		}
 		resultWriter = q5Result
+
 	default:
 		return fmt.Errorf(errors.UnknownQueryResultCode)
 	}

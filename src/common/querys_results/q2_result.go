@@ -24,7 +24,7 @@ type ImageArticle struct {
 }
 
 func (article *ImageArticle) ToRow() string {
-	return fmt.Sprintf("%s,%s,%s,%s,%s", article.ArticleID, article.Name, article.URL, string(article.ImageBytes), article.Error)
+	return fmt.Sprintf("%s,%s,%s,%s,%s\n", article.ArticleID, article.Name, article.URL, string(article.ImageBytes), article.Error)
 }
 
 func (article *ImageArticle) ToBytes() ([]byte, error) {

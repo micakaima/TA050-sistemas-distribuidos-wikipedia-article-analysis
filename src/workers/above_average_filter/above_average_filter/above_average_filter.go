@@ -59,7 +59,7 @@ func New(config AboveAverageFilterConfig) (*AboveAverageFilterWorker, error) {
 	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
 	if err != nil {
 		dataInputExchange.Close()
-		dataInputExchange.Close()
+		averageInputExchange.Close()
 		return nil, err
 	}
 	return &AboveAverageFilterWorker{
