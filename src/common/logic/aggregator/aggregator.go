@@ -155,6 +155,9 @@ func (w *Aggregator[T]) finish(clientID uint64) error {
 	if err := w.publishQueryResult(clientID, finalResult); err != nil {
 		return err
 	}
+
+	w.sendEOF(clientID)
+
 	utils.WithLock(&w.mu, func() {
 		delete(w.clientDone, clientID)
 	})
@@ -175,4 +178,17 @@ func (w *Aggregator[T]) publishQueryResult(clientID uint64, result *qresults.Que
 		return err
 	}
 	return nil
+}
+
+func (w *Aggregator[T]) sendEOF(clientID uint64) {
+	eof := messages.EofMsg{}
+	eofMessage, err := middleware.NewMessage(clientID, messages.EOFCode, &eof)
+	if err != nil {
+		slog.Error("While creating EOF message", "err", err)
+		return
+	}
+	if err := w.outputQueue.Send(*eofMessage); err != nil {
+		slog.Error("While sending EOF message", "err", err)
+		return
+	}
 }
