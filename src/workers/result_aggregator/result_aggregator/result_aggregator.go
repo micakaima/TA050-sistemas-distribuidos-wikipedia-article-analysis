@@ -124,13 +124,13 @@ func (w *Worker) handleQ1(msg middleware.Message, ack, nack func()) {
 		return
 	}
 
-	batch, err := qresults.Q1ResultBatchFromBytes([]byte(msg.Body))
+	result, err := qresults.Q1ResultFromBytes([]byte(msg.Body))
 	if err != nil {
 		slog.Error("While parsing Q1 results", "err", err)
 		nack()
 		return
 	}
-	batchBytes, err := batch.ToBytes()
+	batchBytes, err := result.ToBytes()
 	if err != nil {
 		slog.Error("While serializing Q1 results", "err", err)
 		nack()
@@ -159,13 +159,13 @@ func (w *Worker) handleQ2(msg middleware.Message, ack, nack func()) {
 		return
 	}
 
-	batch, err := qresults.Q2ResultBatchFromBytes([]byte(msg.Body))
+	result, err := qresults.Q2ResultFromBytes([]byte(msg.Body))
 	if err != nil {
 		slog.Error("While parsing Q2 results", "err", err)
 		nack()
 		return
 	}
-	batchBytes, err := batch.ToBytes()
+	batchBytes, err := result.ToBytes()
 	if err != nil {
 		slog.Error("While serializing Q2 results", "err", err)
 		nack()
@@ -198,16 +198,17 @@ func (w *Worker) finishQ1(clientID uint64) error {
 	if err != nil {
 		return err
 	}
-	resultBatch := qresults.NewEmptyQ1ResultBatch(len(batchBytes))
+	resultBatch := qresults.NewEmptyEnglish2020ArticleBatch(0)
 	for _, b := range batchBytes {
-		result, err := qresults.Q1ResultBatchFromBytes(b)
+		result, err := qresults.English2020ArticleBatchFromBytes(b)
 		if err != nil {
 			return err
 		}
 		resultBatch.Merge(*result)
 	}
+	finalResult := qresults.Q1Result{ResultArticles: resultBatch}
 
-	if err := w.publishQueryResult(clientID, qresults.Q1Code, &resultBatch); err != nil {
+	if err := w.publishQueryResult(clientID, qresults.Q1Code, &finalResult); err != nil {
 		return err
 	}
 	w.markQueryDone(state, true)
@@ -224,16 +225,17 @@ func (w *Worker) finishQ2(clientID uint64) error {
 	if err != nil {
 		return err
 	}
-	resultBatch := qresults.NewEmptyQ2ResultBatch(len(batchBytes))
+	resultBatch := qresults.NewEmptyImageArticleBatch(0)
 	for _, b := range batchBytes {
-		result, err := qresults.Q2ResultBatchFromBytes(b)
+		result, err := qresults.ImageArticleBatchFromBytes(b)
 		if err != nil {
 			return err
 		}
 		resultBatch.Merge(*result)
 	}
+	finalResult := qresults.Q2Result{ResultArticles: resultBatch}
 
-	if err := w.publishQueryResult(clientID, qresults.Q2Code, &resultBatch); err != nil {
+	if err := w.publishQueryResult(clientID, qresults.Q2Code, &finalResult); err != nil {
 		return err
 	}
 	w.markQueryDone(state, false)

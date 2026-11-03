@@ -36,14 +36,14 @@ func FilterYearCandidates(candidates generic.Batch[*messages.YearCandidate], yea
 	return englishCandidates, bioCandidates
 }
 
-func FilterEnglishCandidates(candidates generic.Batch[*messages.EnglishCandidate]) generic.Batch[*qresults.Q1Result] {
-	results := qresults.NewEmptyQ1ResultBatch(candidates.Len())
+func FilterEnglishCandidates(candidates generic.Batch[*messages.EnglishCandidate]) qresults.Q1Result {
+	results := qresults.NewEmptyEnglish2020ArticleBatch(0)
 	for _, candidate := range candidates.Items {
 		if candidate.InLanguage == "en" {
-			results.Add(&qresults.Q1Result{ArticleID: candidate.ArticleID, DateModified: candidate.DateModified, URL: candidate.URL})
+			results.Add(&qresults.English2020Article{ArticleID: candidate.ArticleID, DateModified: candidate.DateModified, URL: candidate.URL})
 		}
 	}
-	return results
+	return qresults.Q1Result{ResultArticles: results}
 }
 
 func FilterBioCandidates(candidates generic.Batch[*messages.BioCandidate]) generic.Batch[*messages.ImageCandidate] {

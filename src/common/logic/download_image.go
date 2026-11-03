@@ -33,12 +33,12 @@ func requestBytes(client *http.Client, targetUrl string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func DownloadImage(records generic.Batch[*messages.ImageCandidate]) generic.Batch[*qresults.Q2Result] {
+func DownloadImage(records generic.Batch[*messages.ImageCandidate]) qresults.Q2Result {
 	client := &http.Client{Timeout: 10 * time.Second}
-	results := qresults.NewEmptyQ2ResultBatch(records.Len())
+	results := qresults.NewEmptyImageArticleBatch(0)
 
 	for _, r := range records.Items {
-		result := &qresults.Q2Result{
+		result := &qresults.ImageArticle{
 			ArticleID: r.ArticleID,
 			Name:      r.Name,
 			URL:       r.URL,
@@ -82,5 +82,5 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate]) generic.Batc
 		result.Error = ""
 		results.Add(result)
 	}
-	return results
+	return qresults.Q2Result{ResultArticles: results}
 }
