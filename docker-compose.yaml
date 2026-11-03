@@ -105,14 +105,60 @@ services:
     container_name: vocabulary_extractor
     depends_on:
       - year_splitter
+      - shared_words_aggregator_0
+      - shared_words_aggregator_1
     environment:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - INPUT_QUEUE=q3q5_queue
-      - OUTPUT_QUEUE_Q3=q3_queue
       - OUTPUT_QUEUE_Q4=q4_queue
       - OUTPUT_QUEUE_Q5=q5_queue
-  
+      - SHARED_WORDS_AGGREGATOR_AMOUNT=2
+      - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
+
+  shared_words_aggregator_0:
+    build:
+      context: .
+      dockerfile: src/workers/shared_words_aggregator/Dockerfile
+    container_name: shared_words_aggregator_0
+    depends_on:
+      - shared_words_joiner
+    environment:
+      - ID=0
+      - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
+      - OUTPUT_QUEUE=q3_partials_queue
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+
+  shared_words_aggregator_1:
+    build:
+      context: .
+      dockerfile: src/workers/shared_words_aggregator/Dockerfile
+    container_name: shared_words_aggregator_1
+    depends_on:
+      - shared_words_joiner
+    environment:
+      - ID=1
+      - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
+      - OUTPUT_QUEUE=q3_partials_queue
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+
+  shared_words_joiner:
+    build:
+      context: .
+      dockerfile: src/workers/shared_words_joiner/Dockerfile
+    container_name: shared_words_joiner
+    depends_on:
+      - gateway
+    environment:
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - INPUT_QUEUE=q3_partials_queue
+      - OUTPUT_QUEUE=results_queue
+      - Q3_EOF_OUTPUT_QUEUE=q3_eof_queue
+      - SHARED_WORDS_AGGREGATOR_AMOUNT=2
+
   year_splitter:
     build:
       context: .
@@ -258,6 +304,7 @@ services:
     container_name: result_aggregator
     depends_on:
       - gateway
+      - shared_words_joiner
     volumes:
       - ./data/storage:/app/storage
     environment:
@@ -265,5 +312,6 @@ services:
       - MOM_PORT=5672
       - Q1_INPUT_QUEUE=q1_results_queue
       - Q2_INPUT_QUEUE=q2_results_queue
+      - Q3_EOF_INPUT_QUEUE=q3_eof_queue
       - OUTPUT_QUEUE=results_queue
       - STORAGE_DIR=/app/storage
