@@ -1,4 +1,4 @@
-import difflib, argparse, pathlib
+import difflib, argparse, pathlib, sys
 from collections import Counter
 
 # Permite comparar 2 archivos individuales.
@@ -17,8 +17,8 @@ def main():
     path1 = pathlib.Path(args.file1)
     path2 = pathlib.Path(args.file2)
     if not path1.exists() or not path2.exists():
-        print(f"[ERROR] Paths are incorrect")
-        return
+        print(f"[ERROR] Paths are incorrect: '{path1}' or '{path2}' does not exist")
+        sys.exit(2)
 
     with open(path1) as file_1:
         file_1_text = file_1.readlines()
@@ -31,10 +31,12 @@ def main():
 
     if counter_1 == counter_2:
         print("Results are the same!")
+        sys.exit(0)
     else:
         print("Results are NOT the same")
         for line in difflib.unified_diff(file_1_text, file_2_text, fromfile=str(path1), tofile=str(path2), lineterm=''):
             print(line)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

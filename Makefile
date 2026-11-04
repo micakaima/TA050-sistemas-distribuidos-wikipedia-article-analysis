@@ -41,3 +41,17 @@ fmt:
 		exit 1; \
 	fi
 .PHONY: fmt
+
+ROWS ?= 50
+CLIENTS ?= 3
+VOLUME ?=
+
+benchmark:
+	@if [ -n "$(VOLUME)" ]; then \
+		python3 scripts/benchmark_runner.py --volume $(VOLUME) --clients $(CLIENTS); \
+	else \
+		python3 scripts/benchmark_runner.py --rows $(ROWS) --clients $(CLIENTS); \
+	fi
+.PHONY: benchmark
+
+

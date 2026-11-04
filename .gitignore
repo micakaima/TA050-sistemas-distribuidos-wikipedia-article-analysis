@@ -13,3 +13,6 @@ data/expected_results/results_0/
 # Cache and benchmark reports
 data/cache/
 data/benchmark_report.md
+__pycache__/
+*.pyc
+
