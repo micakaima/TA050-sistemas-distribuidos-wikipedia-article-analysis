@@ -1,40 +1,40 @@
-package columnfiltermanager
+package genericmanager
 
 import (
-	"fmt"
-	"log/slog"
-	"math/rand/v2"
-
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
-
+	"fmt"
+	"log/slog"
+	"math/rand/v2"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 )
 
-type ColumnFilterManagerConfig struct {
-	Id                 int
-	MomHost            string
-	MomPort            int
-	InputQueue         string
-	ColumnFilterAmount int
-	ColumnFilterPrefix string
+type ManagerConfig struct {
+	Id           int
+	MomHost      string
+	MomPort      int
+	InputQueue   string
+	ExpectingMsg messages.InnerMsgCode
+	NodeAmount   int
+	NodePrefix   string
 }
 
-type ColumnFilterManager struct {
-	inputQueue         middleware.Middleware
-	outputExchange     middleware.ExchangeMiddleware
-	columnFilterAmount int
-	columnFilterPrefix string
-	workerKeys         []string
-	nextTargetNodeIdx  int
+type Manager struct {
+	inputQueue        middleware.Middleware
+	outputExchange    middleware.ExchangeMiddleware
+	expectingMsg      messages.InnerMsgCode
+	nodeAmount        int
+	nodePrefix        string
+	workerKeys        []string
+	nextTargetNodeIdx int
 }
 
-func NewColumnFilterManager(config ColumnFilterManagerConfig) (*ColumnFilterManager, error) {
+func NewManager[T messages.InnerMsgCode](config ManagerConfig) (*Manager, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
 	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueue, connSettings)
@@ -42,32 +42,33 @@ func NewColumnFilterManager(config ColumnFilterManagerConfig) (*ColumnFilterMana
 		return nil, err
 	}
 
-	outputExchange, err := middleware.CreateExchangeMiddleware(config.ColumnFilterPrefix, []string{}, connSettings)
+	outputExchange, err := middleware.CreateExchangeMiddleware(config.NodePrefix, []string{}, connSettings)
 	if err != nil {
 		inputQueue.Close()
 		return nil, err
 	}
 
-	workerKeys := make([]string, 0, config.ColumnFilterAmount)
-	for i := range config.ColumnFilterAmount {
-		workerKeys = append(workerKeys, utils.GenerateRoutingKey(config.ColumnFilterPrefix, i))
+	workerKeys := make([]string, 0, config.NodeAmount)
+	for i := range config.NodeAmount {
+		workerKeys = append(workerKeys, utils.GenerateRoutingKey(config.NodePrefix, i))
 	}
 	if len(workerKeys) == 0 {
 		return nil, fmt.Errorf(errors.NotEnoughWorkers)
 	}
 	firstTargetNodeIdx := rand.IntN(len(workerKeys))
 
-	return &ColumnFilterManager{
-		inputQueue:         inputQueue,
-		outputExchange:     outputExchange,
-		columnFilterAmount: config.ColumnFilterAmount,
-		columnFilterPrefix: config.ColumnFilterPrefix,
-		workerKeys:         workerKeys,
-		nextTargetNodeIdx:  firstTargetNodeIdx,
+	return &Manager{
+		inputQueue:        inputQueue,
+		outputExchange:    outputExchange,
+		expectingMsg:      config.ExpectingMsg,
+		nodeAmount:        config.NodeAmount,
+		nodePrefix:        config.NodePrefix,
+		workerKeys:        workerKeys,
+		nextTargetNodeIdx: firstTargetNodeIdx,
 	}, nil
 }
 
-func (m *ColumnFilterManager) Run() {
+func (m *Manager) Run() {
 	done := make(chan struct{})
 	m.handleSignals(done)
 	defer close(done)
@@ -83,7 +84,7 @@ func (m *ColumnFilterManager) Run() {
 	m.shutdown()
 }
 
-func (m *ColumnFilterManager) handleSignals(done chan struct{}) {
+func (m *Manager) handleSignals(done chan struct{}) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -97,7 +98,7 @@ func (m *ColumnFilterManager) handleSignals(done chan struct{}) {
 	}()
 }
 
-func (m *ColumnFilterManager) shutdown() {
+func (m *Manager) shutdown() {
 	if err := m.inputQueue.Close(); err != nil {
 		slog.Error("While closing input queue", "err", err)
 	}
@@ -106,17 +107,17 @@ func (m *ColumnFilterManager) shutdown() {
 	}
 }
 
-func (m *ColumnFilterManager) handleMessage(msg middleware.Message, ack, nack func()) {
+func (m *Manager) handleMessage(msg middleware.Message, ack, nack func()) {
 	switch msg.MsgCode {
-	case messages.ArticlesBatchCode:
+	case m.expectingMsg:
 		if err := m.handleDataMsg(msg); err != nil {
-			slog.Error("While handling Articles Batch message")
+			slog.Error("While handling Data message", "err", err)
 			nack()
 			return
 		}
 	case messages.EOFCode:
 		if err := m.handleEOF(msg); err != nil {
-			slog.Error("While handling EOF message")
+			slog.Error("While handling EOF message", "err", err)
 			nack()
 			return
 		}
@@ -128,7 +129,7 @@ func (m *ColumnFilterManager) handleMessage(msg middleware.Message, ack, nack fu
 	ack()
 }
 
-func (m *ColumnFilterManager) handleDataMsg(msg middleware.Message) error {
+func (m *Manager) handleDataMsg(msg middleware.Message) error {
 	targetNodeKey := m.getNextTargetNode()
 	if err := m.outputExchange.SendToKey(msg, targetNodeKey); err != nil {
 		slog.Debug("While sending Data msg to worker", "err", err)
@@ -137,7 +138,7 @@ func (m *ColumnFilterManager) handleDataMsg(msg middleware.Message) error {
 	return nil
 }
 
-func (m *ColumnFilterManager) handleEOF(msg middleware.Message) error {
+func (m *Manager) handleEOF(msg middleware.Message) error {
 	eof := messages.EofMsg{}
 	eofMsg, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
 	if err != nil {
@@ -151,7 +152,7 @@ func (m *ColumnFilterManager) handleEOF(msg middleware.Message) error {
 	return nil
 }
 
-func (m *ColumnFilterManager) getNextTargetNode() string {
+func (m *Manager) getNextTargetNode() string {
 	nextTargetNode := m.workerKeys[m.nextTargetNodeIdx]
 	m.nextTargetNodeIdx = (m.nextTargetNodeIdx + 1) % len(m.workerKeys)
 	return nextTargetNode
