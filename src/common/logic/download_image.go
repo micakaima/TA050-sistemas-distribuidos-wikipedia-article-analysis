@@ -74,6 +74,11 @@ func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAge
 			return body, nil
 		}
 
+		if resp.StatusCode == http.StatusNotFound {
+			slog.Info("Resource not found", "status", resp.StatusCode, "article_id", articleID)
+			return nil, errors.New(ExternalAPIError)
+		}
+
 		if areTooManyRequests(resp, articleID) {
 			continue
 		}
@@ -113,6 +118,21 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 			results.Add(result)
 			continue
 		}
+
+		// Descargar con Image URL si está disponible
+		if r.ImageURL != "" {
+			imageBytes, err := requestBytes(client, r.ImageURL, maxRetries, userAgent, id)
+			if err == nil {
+				result.ImageBytes = imageBytes
+				result.Error = ""
+				results.Add(result)
+				continue
+			}
+			slog.Warn("Failed to download image from provided URL, falling back to Wikipedia API", "article_id", r.ArticleID, "name", r.Name, "err", err)
+		}
+
+		// Descargar con Article URL
+		slog.Info("Using Wikipedia API to get image", "article_id", r.ArticleID, "name", r.Name)
 
 		splittedURL := strings.Split(r.URL, "/wiki/")
 		if len(splittedURL) != 2 {
