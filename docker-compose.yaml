@@ -5,8 +5,7 @@ services:
       dockerfile: src/client/Dockerfile
     container_name: client_0
     depends_on:
-      - column_filter_manager_0
-      - column_filter_manager_1
+      - gateway
     environment:
       - INPUT_DIR=/input/input_0
       - OUTPUT_DIR=/output/output_0
@@ -23,8 +22,7 @@ services:
       dockerfile: src/client/Dockerfile
     container_name: client_1
     depends_on:
-      - column_filter_manager_0
-      - column_filter_manager_1
+      - gateway
     environment:
       - INPUT_DIR=/input/input_1
       - OUTPUT_DIR=/output/output_1
@@ -41,8 +39,7 @@ services:
       dockerfile: src/client/Dockerfile
     container_name: client_2
     depends_on:
-      - column_filter_manager_0
-      - column_filter_manager_1
+      - gateway
     environment:
       - INPUT_DIR=/input/input_2
       - OUTPUT_DIR=/output/output_2
@@ -64,7 +61,8 @@ services:
     environment:
       - SERVER_HOST=gateway
       - SERVER_PORT=5678
-      - INPUT_QUEUE=raw_articles_queue
+      - COLUMN_FILTER_AMOUNT=2
+      - COLUMN_FILTER_PREFIX=column_filter
       - OUTPUT_QUEUE=results_queue
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
@@ -92,15 +90,19 @@ services:
       dockerfile: src/workers/column_filter/Dockerfile
     container_name: column_filter_0
     depends_on:
-      - vocabulary_extractor
-      - year_filter
+      - vocabulary_extractor_0
+      - vocabulary_extractor_1
+      - year_filter_0
+      - year_filter_1
     environment:
       - ID=0
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - OUTPUT_QUEUE_Q1_TO_Q2=q1q2_queue
-      - OUTPUT_QUEUE_Q3_TO_Q5=q3q5_queue
       - COLUMN_FILTER_PREFIX=column_filter
+      - YEAR_FILTER_AMOUNT=2
+      - YEAR_FILTER_PREFIX=year_filter
+      - VOCABULARY_EXTRACTOR_AMOUNT=2
+      - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
   
   column_filter_1:
     build:
@@ -108,53 +110,26 @@ services:
       dockerfile: src/workers/column_filter/Dockerfile
     container_name: column_filter_1
     depends_on:
-      - vocabulary_extractor
-      - year_filter
+      - vocabulary_extractor_0
+      - vocabulary_extractor_1
+      - year_filter_0
+      - year_filter_1
     environment:
       - ID=1
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - OUTPUT_QUEUE_Q1_TO_Q2=q1q2_queue
-      - OUTPUT_QUEUE_Q3_TO_Q5=q3q5_queue
       - COLUMN_FILTER_PREFIX=column_filter
+      - YEAR_FILTER_AMOUNT=2
+      - YEAR_FILTER_PREFIX=year_filter
+      - VOCABULARY_EXTRACTOR_AMOUNT=2
+      - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
 
-  column_filter_manager_0:
-    build:
-      context: .
-      dockerfile: src/managers/column_filter_manager/Dockerfile
-    container_name: column_filter_manager_0
-    depends_on:
-      - column_filter_0
-      - column_filter_1
-    environment:
-      - ID=0
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - INPUT_QUEUE=raw_articles_queue
-      - COLUMN_FILTER_AMOUNT=2
-      - COLUMN_FILTER_PREFIX=column_filter
-  
-  column_filter_manager_1:
-    build:
-      context: .
-      dockerfile: src/managers/column_filter_manager/Dockerfile
-    container_name: column_filter_manager_1
-    depends_on:
-      - column_filter_0
-      - column_filter_1
-    environment:
-      - ID=1
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - INPUT_QUEUE=raw_articles_queue
-      - COLUMN_FILTER_AMOUNT=2
-      - COLUMN_FILTER_PREFIX=column_filter
 
-  vocabulary_extractor:
+  vocabulary_extractor_0:
     build:
       context: .
       dockerfile: src/workers/vocabulary_extractor/Dockerfile
-    container_name: vocabulary_extractor
+    container_name: vocabulary_extractor_0
     depends_on:
       - year_splitter
       - shared_words_aggregator_0
@@ -162,9 +137,33 @@ services:
       - partial_top_aggregator_0
       - partial_top_aggregator_1
     environment:
+      - ID=0
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - INPUT_QUEUE=q3q5_queue
+      - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
+      - OUTPUT_QUEUE_Q5=q5_queue
+      - SHARED_WORDS_AGGREGATOR_AMOUNT=2
+      - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
+      - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
+      - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
+      - COLUMN_FILTER_AMOUNT=2
+
+  vocabulary_extractor_1:
+    build:
+      context: .
+      dockerfile: src/workers/vocabulary_extractor/Dockerfile
+    container_name: vocabulary_extractor_1
+    depends_on:
+      - year_splitter
+      - shared_words_aggregator_0
+      - shared_words_aggregator_1
+      - partial_top_aggregator_0
+      - partial_top_aggregator_1
+    environment:
+      - ID=1
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
       - OUTPUT_QUEUE_Q5=q5_queue
       - SHARED_WORDS_AGGREGATOR_AMOUNT=2
       - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
@@ -185,6 +184,7 @@ services:
       - OUTPUT_QUEUE=q3_results_queue
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
+      - VOCABULARY_EXTRACTOR_AMOUNT=2
 
   shared_words_aggregator_1:
     build:
@@ -199,6 +199,7 @@ services:
       - OUTPUT_QUEUE=q3_results_queue
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
+      - VOCABULARY_EXTRACTOR_AMOUNT=2
 
   year_splitter:
     build:
@@ -218,6 +219,7 @@ services:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - INPUT_QUEUE=q5_queue
+      - VOCABULARY_EXTRACTOR_AMOUNT=2
   
   old_articles_averager_0:
     build:
@@ -281,63 +283,143 @@ services:
       - MOM_PORT=5672
       - OUTPUT_QUEUE=q5_results_queue
 
-  year_filter:
+  year_filter_0:
     build:
       context: .
       dockerfile: src/workers/year_filter/Dockerfile
-    container_name: year_filter
+    container_name: year_filter_0
     depends_on:
-      - english_filter
-      - bio_filter
+      - english_filter_0
+      - english_filter_1
+      - bio_filter_0
+      - bio_filter_1
     environment:
+      - ID=0
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - INPUT_QUEUE=q1q2_queue
-      - OUTPUT_EXCHANGE=year_filtered_exchange
-      - ROUTING_KEYS=english,bio
+      - YEAR_FILTER_PREFIX=year_filter
+      - ENGLISH_FILTER_AMOUNT=2
+      - ENGLISH_FILTER_PREFIX=english_filter
+      - BIO_FILTER_AMOUNT=2
+      - BIO_FILTER_PREFIX=bio_filter
       - YEAR=2020
       - COLUMN_FILTER_AMOUNT=2
 
-  english_filter:
+  year_filter_1:
+    build:
+      context: .
+      dockerfile: src/workers/year_filter/Dockerfile
+    container_name: year_filter_1
+    depends_on:
+      - english_filter_0
+      - english_filter_1
+      - bio_filter_0
+      - bio_filter_1
+    environment:
+      - ID=1
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - YEAR_FILTER_PREFIX=year_filter
+      - ENGLISH_FILTER_AMOUNT=2
+      - ENGLISH_FILTER_PREFIX=english_filter
+      - BIO_FILTER_AMOUNT=2
+      - BIO_FILTER_PREFIX=bio_filter
+      - YEAR=2020
+      - COLUMN_FILTER_AMOUNT=2
+
+  english_filter_0:
     build:
       context: .
       dockerfile: src/workers/english_filter/Dockerfile
-    container_name: english_filter
+    container_name: english_filter_0
     depends_on:
       - q1_aggregator
     environment:
+      - ID=0
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - INPUT_EXCHANGE=year_filtered_exchange
+      - ENGLISH_FILTER_PREFIX=english_filter
       - OUTPUT_QUEUE=q1_results_queue
-      - ROUTING_KEYS=english
+      - YEAR_FILTER_AMOUNT=2
 
-  bio_filter:
+  english_filter_1:
+    build:
+      context: .
+      dockerfile: src/workers/english_filter/Dockerfile
+    container_name: english_filter_1
+    depends_on:
+      - q1_aggregator
+    environment:
+      - ID=1
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - ENGLISH_FILTER_PREFIX=english_filter
+      - OUTPUT_QUEUE=q1_results_queue
+      - YEAR_FILTER_AMOUNT=2
+
+  bio_filter_0:
     build:
       context: .
       dockerfile: src/workers/bio_filter/Dockerfile
-    container_name: bio_filter
+    container_name: bio_filter_0
     depends_on:
-      - image_downloader
+      - image_downloader_0
+      - image_downloader_1
     environment:
+      - ID=0
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - INPUT_EXCHANGE=year_filtered_exchange
-      - OUTPUT_QUEUE=image_download_queue
-      - ROUTING_KEYS=bio
+      - BIO_FILTER_PREFIX=bio_filter
+      - IMAGE_DOWNLOADER_AMOUNT=2
+      - IMAGE_DOWNLOADER_PREFIX=image_downloader
+      - YEAR_FILTER_AMOUNT=2
+
+  bio_filter_1:
+    build:
+      context: .
+      dockerfile: src/workers/bio_filter/Dockerfile
+    container_name: bio_filter_1
+    depends_on:
+      - image_downloader_0
+      - image_downloader_1
+    environment:
+      - ID=1
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - BIO_FILTER_PREFIX=bio_filter
+      - IMAGE_DOWNLOADER_AMOUNT=2
+      - IMAGE_DOWNLOADER_PREFIX=image_downloader
+      - YEAR_FILTER_AMOUNT=2
     
-  image_downloader:
+  image_downloader_0:
     build:
       context: .
       dockerfile: src/workers/image_downloader/Dockerfile
-    container_name: image_downloader
+    container_name: image_downloader_0
     depends_on:
       - q2_aggregator
     environment:
+      - ID=0
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - INPUT_QUEUE=image_download_queue
+      - IMAGE_DOWNLOADER_PREFIX=image_downloader
       - OUTPUT_QUEUE=q2_results_queue
+      - BIO_FILTER_AMOUNT=2
+
+  image_downloader_1:
+    build:
+      context: .
+      dockerfile: src/workers/image_downloader/Dockerfile
+    container_name: image_downloader_1
+    depends_on:
+      - q2_aggregator
+    environment:
+      - ID=1
+      - MOM_HOST=rabbitmq
+      - MOM_PORT=5672
+      - IMAGE_DOWNLOADER_PREFIX=image_downloader
+      - OUTPUT_QUEUE=q2_results_queue
+      - BIO_FILTER_AMOUNT=2
 
   q1_aggregator:
     build:
@@ -354,6 +436,7 @@ services:
       - INPUT_QUEUE=q1_results_queue
       - OUTPUT_QUEUE=results_queue
       - STORAGE_DIR=/app/storage
+      - ENGLISH_FILTER_AMOUNT=2
   
   q2_aggregator:
     build:
@@ -370,6 +453,8 @@ services:
       - INPUT_QUEUE=q2_results_queue
       - OUTPUT_QUEUE=results_queue
       - STORAGE_DIR=/app/storage
+      - IMAGE_DOWNLOADER_AMOUNT=2
+
 
   q3_aggregator:
     build:
@@ -401,6 +486,7 @@ services:
       - OUTPUT_QUEUE=q4_results_queue
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
+      - VOCABULARY_EXTRACTOR_AMOUNT=2
 
   partial_top_aggregator_1:
     build:
@@ -415,6 +501,7 @@ services:
       - OUTPUT_QUEUE=q4_results_queue
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
+      - VOCABULARY_EXTRACTOR_AMOUNT=2
 
   q4_aggregator:
     build:
