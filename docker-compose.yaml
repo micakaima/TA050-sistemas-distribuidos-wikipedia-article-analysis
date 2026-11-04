@@ -13,6 +13,8 @@ services:
       - SERVER_HOST=gateway
       - SERVER_PORT=5678
       - BATCH_SIZE=5
+      - CONNECTION_ATTEMPS=3
+      - CONNECTION_ATTEMPTS_DELAY_MS=300
     volumes:
       - ./data/input:/input
       - ./data/output:/output
@@ -31,6 +33,8 @@ services:
       - SERVER_HOST=gateway
       - SERVER_PORT=5678
       - BATCH_SIZE=5
+      - CONNECTION_ATTEMPS=3
+      - CONNECTION_ATTEMPTS_DELAY_MS=300
     volumes:
       - ./data/input:/input
       - ./data/output:/output
@@ -49,6 +53,8 @@ services:
       - SERVER_HOST=gateway
       - SERVER_PORT=5678
       - BATCH_SIZE=5
+      - CONNECTION_ATTEMPS=3
+      - CONNECTION_ATTEMPTS_DELAY_MS=300
     volumes:
       - ./data/input:/input
       - ./data/output:/output

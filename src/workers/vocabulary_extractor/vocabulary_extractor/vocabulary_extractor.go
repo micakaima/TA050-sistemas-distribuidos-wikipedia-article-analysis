@@ -156,7 +156,6 @@ func (w *VocabularyExtractorWorker) handleRawAbstract(msg middleware.Message) er
 		return err
 	}
 	cleanVocabularies := extractCleanVocabularies(*rawAbstractBatch)
-	wordCounts := filterByQuery(cleanVocabularies)
 
 	if err := w.sendSharedWordCandidates(msg.ClientID, cleanVocabularies); err != nil {
 		slog.Debug("While sending Shared Word Candidate messages", "err", err)
@@ -168,13 +167,8 @@ func (w *VocabularyExtractorWorker) handleRawAbstract(msg middleware.Message) er
 		return err
 	}
 
-	wordCountsMsg, err := middleware.NewMessage(msg.ClientID, messages.WordCountCode, &wordCounts)
-	if err != nil {
-		slog.Debug("While creating Word Count Batch message", "err", err)
-		return err
-	}
-	if err := w.outputQueueQ5.Send(*wordCountsMsg); err != nil {
-		slog.Debug("While sending Word Count Batch message", "err", err)
+	if err := w.sendWordCounts(msg.ClientID, cleanVocabularies); err != nil {
+		slog.Debug("While sending Word Count messages", "err", err)
 		return err
 	}
 
@@ -211,6 +205,20 @@ func (w *VocabularyExtractorWorker) sendPartialTopCandidates(clientID uint64, cl
 			slog.Debug("While sending Partial Top Candidate Batch message", "err", err)
 			return err
 		}
+	}
+	return nil
+}
+
+func (w *VocabularyExtractorWorker) sendWordCounts(clientID uint64, cleanVocabularies generic.Batch[*messages.ExtractedVocabulary]) error {
+	wordCounts := getWordCounts(cleanVocabularies)
+	wordCountsMsg, err := middleware.NewMessage(clientID, messages.WordCountCode, &wordCounts)
+	if err != nil {
+		slog.Debug("While creating Word Count Batch message", "err", err)
+		return err
+	}
+	if err := w.outputQueueQ5.Send(*wordCountsMsg); err != nil {
+		slog.Debug("While sending Word Count Batch message", "err", err)
+		return err
 	}
 	return nil
 }
@@ -323,8 +331,8 @@ func extractCleanVocabulary(abstract string, lang string) map[string]struct{} {
 	return cleanVocabulary
 }
 
-// filterByQuery genera los word counts para Q5.
-func filterByQuery(cleanVocabularies generic.Batch[*messages.ExtractedVocabulary]) generic.Batch[*messages.WordCount] {
+// getWordCounts genera los word counts para Q5.
+func getWordCounts(cleanVocabularies generic.Batch[*messages.ExtractedVocabulary]) generic.Batch[*messages.WordCount] {
 	wordCounts := messages.NewEmptyWordCountBatch(cleanVocabularies.Len())
 
 	for _, v := range cleanVocabularies.Items {

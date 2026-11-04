@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/client/client"
-	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/utils"
 )
 
 func loadConfig() (client.ClientConfig, error) {
@@ -31,22 +30,30 @@ func loadConfig() (client.ClientConfig, error) {
 		return client.ClientConfig{}, fmt.Errorf(client.ConfigSetupError, "OUTPUT_DIR")
 	}
 
-	batchSizeStr := os.Getenv("BATCH_SIZE")
-	if batchSizeStr == "" {
+	batchSizeInt, err := strconv.Atoi(os.Getenv("BATCH_SIZE"))
+	if err != nil {
 		return client.ClientConfig{}, fmt.Errorf(client.ConfigSetupError, "BATCH_SIZE")
 	}
-	batchSize64, err := strconv.ParseUint(batchSizeStr, 10, utils.UINT32_SIZE)
+	batchSize := uint32(batchSizeInt)
+
+	connectionAttempts, err := strconv.Atoi(os.Getenv("CONNECTION_ATTEMPS"))
 	if err != nil {
-		return client.ClientConfig{}, fmt.Errorf(client.ConfigSetupError, "OUTPUT_DIR")
+		return client.ClientConfig{}, fmt.Errorf(client.ConfigSetupError, "CONNECTION_ATTEMPS")
 	}
-	batchSize := uint32(batchSize64)
+
+	connectionAttemptsDelayMs, err := strconv.Atoi(os.Getenv("CONNECTION_ATTEMPTS_DELAY_MS"))
+	if err != nil {
+		return client.ClientConfig{}, fmt.Errorf(client.ConfigSetupError, "CONNECTION_ATTEMPTS_DELAY_MS")
+	}
 
 	return client.ClientConfig{
-		ServerHost: serverHost,
-		ServerPort: serverPort,
-		InputDir:   inputDir,
-		OutputDir:  outputDir,
-		BatchSize:  batchSize,
+		ServerHost:                serverHost,
+		ServerPort:                serverPort,
+		InputDir:                  inputDir,
+		OutputDir:                 outputDir,
+		BatchSize:                 batchSize,
+		ConnectionAttempts:        connectionAttempts,
+		ConnectionAttemptsDelayMs: connectionAttemptsDelayMs,
 	}, nil
 }
 

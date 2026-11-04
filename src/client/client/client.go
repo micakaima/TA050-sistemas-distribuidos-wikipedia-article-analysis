@@ -20,15 +20,14 @@ import (
 	"github.com/parquet-go/parquet-go"
 )
 
-const connectionAttempts = 3
-const connectionAttemptsDelayMs = 300
-
 type ClientConfig struct {
-	ServerHost string
-	ServerPort string
-	InputDir   string
-	OutputDir  string
-	BatchSize  uint32
+	ServerHost                string
+	ServerPort                string
+	InputDir                  string
+	OutputDir                 string
+	BatchSize                 uint32
+	ConnectionAttempts        int
+	ConnectionAttemptsDelayMs int
 }
 
 type Client struct {
@@ -38,7 +37,7 @@ type Client struct {
 }
 
 func NewClient(config ClientConfig) (*Client, error) {
-	conn, err := connectToServer(config.ServerHost, config.ServerPort)
+	conn, err := connectToServer(config.ServerHost, config.ServerPort, config.ConnectionAttempts, config.ConnectionAttemptsDelayMs)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +46,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 	return client, nil
 }
 
-func connectToServer(host, port string) (net.Conn, error) {
+func connectToServer(host, port string, connectionAttempts int, connectionAttemptsDelayMs int) (net.Conn, error) {
 	var err error
 	var conn net.Conn
 
@@ -55,7 +54,7 @@ func connectToServer(host, port string) (net.Conn, error) {
 		conn, err = net.Dial("tcp", host+":"+port)
 		if err != nil {
 			slog.Warn("Retrying connection...")
-			time.Sleep(connectionAttemptsDelayMs * time.Millisecond)
+			time.Sleep(time.Duration(connectionAttemptsDelayMs) * time.Millisecond)
 			continue
 		}
 		break
