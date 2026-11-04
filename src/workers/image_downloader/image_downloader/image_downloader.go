@@ -10,35 +10,43 @@ import (
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
 type Config struct {
-	MomHost     string
-	MomPort     int
-	InputQueue  string
-	OutputQueue string
+	Id                    int
+	MomHost               string
+	MomPort               int
+	ImageDownloaderPrefix string
+	OutputQueue           string
+	BioFilterAmount       int
 }
 
 type ImageDownloaderWorker struct {
-	inputQueue  middleware.Middleware
-	outputQueue middleware.Middleware
+	inputExchange   middleware.Middleware
+	outputQueue     middleware.Middleware
+	recvEofCountMap map[uint64]int
+	bioFilterAmount int
 }
 
 func New(config Config) (*ImageDownloaderWorker, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
-	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueue, connSettings)
+	inputExchangeRoutingKey := []string{utils.GenerateRoutingKey(config.ImageDownloaderPrefix, config.Id)}
+	inputExchange, err := middleware.CreateExchangeMiddleware(config.ImageDownloaderPrefix, inputExchangeRoutingKey, connSettings)
 	if err != nil {
 		return nil, err
 	}
 	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
 	if err != nil {
-		inputQueue.Close()
+		inputExchange.Close()
 		return nil, err
 	}
 	return &ImageDownloaderWorker{
-		inputQueue:  inputQueue,
-		outputQueue: outputQueue,
+		inputExchange:   inputExchange,
+		outputQueue:     outputQueue,
+		recvEofCountMap: map[uint64]int{},
+		bioFilterAmount: config.BioFilterAmount,
 	}, nil
 }
 
@@ -50,14 +58,14 @@ func (w *ImageDownloaderWorker) Run() {
 
 	go func() {
 		defer wg.Done()
-		w.inputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
+		w.inputExchange.StartConsuming(func(msg middleware.Message, ack, nack func()) {
 			w.handleMessage(msg, ack, nack)
 		})
 	}()
 
 	<-signals
 	slog.Info("Graceful shutdown started...")
-	w.inputQueue.StopConsuming()
+	w.inputExchange.StopConsuming()
 	wg.Wait()
 	w.shutdown()
 }
@@ -77,6 +85,13 @@ func (w *ImageDownloaderWorker) handleMessage(msg middleware.Message, ack, nack 
 			return
 		}
 	case messages.EOFCode:
+		w.recvEofCountMap[msg.ClientID]++
+		if w.recvEofCountMap[msg.ClientID] < w.bioFilterAmount {
+			ack()
+			return
+		}
+		delete(w.recvEofCountMap, msg.ClientID)
+
 		eof := messages.EofMsg{}
 		eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
 		if err != nil || w.outputQueue.Send(*eofMessage) != nil {
@@ -91,8 +106,8 @@ func (w *ImageDownloaderWorker) handleMessage(msg middleware.Message, ack, nack 
 }
 
 func (w *ImageDownloaderWorker) shutdown() {
-	if err := w.inputQueue.Close(); err != nil {
-		slog.Error("While closing input queue", "err", err)
+	if err := w.inputExchange.Close(); err != nil {
+		slog.Error("While closing input exchange", "err", err)
 	}
 	if err := w.outputQueue.Close(); err != nil {
 		slog.Error("While closing output queue", "err", err)

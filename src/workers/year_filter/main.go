@@ -6,12 +6,16 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
-	"strings"
 
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/workers/year_filter/year_filter"
 )
 
 func loadConfig() (year_filter.Config, error) {
+	id, err := strconv.Atoi(os.Getenv("ID"))
+	if err != nil {
+		return year_filter.Config{}, errors.New("ID environment variable is required and must be a number")
+	}
+
 	momPort, err := strconv.Atoi(os.Getenv("MOM_PORT"))
 	if err != nil {
 		return year_filter.Config{}, errors.New("MOM_PORT environment variable is required and must be a number")
@@ -22,19 +26,29 @@ func loadConfig() (year_filter.Config, error) {
 		return year_filter.Config{}, errors.New("MOM_HOST environment variable is required")
 	}
 
-	inputQueue := os.Getenv("INPUT_QUEUE")
-	if inputQueue == "" {
-		return year_filter.Config{}, errors.New("INPUT_QUEUE environment variable is required")
+	yearFilterPrefix := os.Getenv("YEAR_FILTER_PREFIX")
+	if yearFilterPrefix == "" {
+		return year_filter.Config{}, errors.New("YEAR_FILTER_PREFIX environment variable is required")
 	}
 
-	outputExchange := os.Getenv("OUTPUT_EXCHANGE")
-	if outputExchange == "" {
-		return year_filter.Config{}, errors.New("OUTPUT_EXCHANGE environment variable is required")
+	englishFilterAmount, err := strconv.Atoi(os.Getenv("ENGLISH_FILTER_AMOUNT"))
+	if err != nil {
+		return year_filter.Config{}, errors.New("ENGLISH_FILTER_AMOUNT environment variable is required and must be a number")
 	}
 
-	routingKeys := strings.Split(os.Getenv("ROUTING_KEYS"), ",")
-	if len(routingKeys) == 0 || routingKeys[0] == "" {
-		return year_filter.Config{}, errors.New("ROUTING_KEYS environment variable is required and must be a comma-separated list")
+	englishFilterPrefix := os.Getenv("ENGLISH_FILTER_PREFIX")
+	if englishFilterPrefix == "" {
+		return year_filter.Config{}, errors.New("ENGLISH_FILTER_PREFIX environment variable is required")
+	}
+
+	bioFilterAmount, err := strconv.Atoi(os.Getenv("BIO_FILTER_AMOUNT"))
+	if err != nil {
+		return year_filter.Config{}, errors.New("BIO_FILTER_AMOUNT environment variable is required and must be a number")
+	}
+
+	bioFilterPrefix := os.Getenv("BIO_FILTER_PREFIX")
+	if bioFilterPrefix == "" {
+		return year_filter.Config{}, errors.New("BIO_FILTER_PREFIX environment variable is required")
 	}
 
 	year, err := strconv.Atoi(os.Getenv("YEAR"))
@@ -48,13 +62,16 @@ func loadConfig() (year_filter.Config, error) {
 	}
 
 	return year_filter.Config{
-		MomHost:            momHost,
-		MomPort:            momPort,
-		InputQueue:         inputQueue,
-		OutputExchange:     outputExchange,
-		RoutingKeys:        routingKeys,
-		Year:               year,
-		ColumnFilterAmount: columnFilterAmount,
+		Id:                  id,
+		MomHost:             momHost,
+		MomPort:             momPort,
+		YearFilterPrefix:    yearFilterPrefix,
+		EnglishFilterAmount: englishFilterAmount,
+		EnglishFilterPrefix: englishFilterPrefix,
+		BioFilterAmount:     bioFilterAmount,
+		BioFilterPrefix:     bioFilterPrefix,
+		Year:                year,
+		ColumnFilterAmount:  columnFilterAmount,
 	}, nil
 }
 

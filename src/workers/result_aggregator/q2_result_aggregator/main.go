@@ -37,6 +37,13 @@ func loadConfig() (aggregator.Config[*qresults.ImageArticle], error) {
 		return aggregator.Config[*qresults.ImageArticle]{}, errors.New("STORAGE_DIR environment variable is required")
 	}
 
+	expectedEOFs := 1
+	if amountStr := os.Getenv("IMAGE_DOWNLOADER_AMOUNT"); amountStr != "" {
+		if val, err := strconv.Atoi(amountStr); err == nil && val > 0 {
+			expectedEOFs = val
+		}
+	}
+
 	return aggregator.Config[*qresults.ImageArticle]{
 		MomHost:         momHost,
 		MomPort:         momPort,
@@ -46,9 +53,10 @@ func loadConfig() (aggregator.Config[*qresults.ImageArticle], error) {
 		StorageName:     "q2",
 		QueryCode:       qresults.Q2Code,
 		ExpectedMsgCode: messages.Q2ResultCode,
-		ExpectedEOFs:    1,
+		ExpectedEOFs:    expectedEOFs,
 		Handler:         &qresults.Q2Result{},
 	}, nil
+
 }
 
 func run() int {

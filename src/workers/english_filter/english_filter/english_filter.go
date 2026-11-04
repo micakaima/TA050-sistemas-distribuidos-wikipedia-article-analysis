@@ -10,25 +10,30 @@ import (
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
 type Config struct {
-	MomHost       string
-	MomPort       int
-	RoutingKeys   []string
-	InputExchange string
-	OutputQueue   string
+	Id                  int
+	MomHost             string
+	MomPort             int
+	EnglishFilterPrefix string
+	OutputQueue         string
+	YearFilterAmount    int
 }
 
 type EnglishFilterWorker struct {
-	inputExchange middleware.Middleware
-	outputQueue   middleware.Middleware
+	inputExchange    middleware.Middleware
+	outputQueue      middleware.Middleware
+	recvEofCountMap  map[uint64]int
+	yearFilterAmount int
 }
 
 func New(config Config) (*EnglishFilterWorker, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
-	inputExchange, err := middleware.CreateExchangeMiddleware(config.InputExchange, config.RoutingKeys, connSettings)
+	inputExchangeRoutingKey := []string{utils.GenerateRoutingKey(config.EnglishFilterPrefix, config.Id)}
+	inputExchange, err := middleware.CreateExchangeMiddleware(config.EnglishFilterPrefix, inputExchangeRoutingKey, connSettings)
 	if err != nil {
 		return nil, err
 	}
@@ -38,8 +43,10 @@ func New(config Config) (*EnglishFilterWorker, error) {
 		return nil, err
 	}
 	return &EnglishFilterWorker{
-		inputExchange: inputExchange,
-		outputQueue:   outputQueue,
+		inputExchange:    inputExchange,
+		outputQueue:      outputQueue,
+		recvEofCountMap:  map[uint64]int{},
+		yearFilterAmount: config.YearFilterAmount,
 	}, nil
 }
 
@@ -78,6 +85,13 @@ func (w *EnglishFilterWorker) handleMessage(msg middleware.Message, ack, nack fu
 			return
 		}
 	case messages.EOFCode:
+		w.recvEofCountMap[msg.ClientID]++
+		if w.recvEofCountMap[msg.ClientID] < w.yearFilterAmount {
+			ack()
+			return
+		}
+		delete(w.recvEofCountMap, msg.ClientID)
+
 		eof := messages.EofMsg{}
 		eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
 		if err != nil || w.outputQueue.Send(*eofMessage) != nil {
@@ -85,6 +99,7 @@ func (w *EnglishFilterWorker) handleMessage(msg middleware.Message, ack, nack fu
 			return
 		}
 	default:
+
 		nack()
 		return
 	}

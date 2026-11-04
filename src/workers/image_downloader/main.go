@@ -10,6 +10,11 @@ import (
 )
 
 func loadConfig() (image_downloader.Config, error) {
+	id, err := strconv.Atoi(os.Getenv("ID"))
+	if err != nil {
+		return image_downloader.Config{}, errors.New("ID environment variable is required and must be a number")
+	}
+
 	momPort, err := strconv.Atoi(os.Getenv("MOM_PORT"))
 	if err != nil {
 		return image_downloader.Config{}, errors.New("MOM_PORT environment variable is required and must be a number")
@@ -20,9 +25,9 @@ func loadConfig() (image_downloader.Config, error) {
 		return image_downloader.Config{}, errors.New("MOM_HOST environment variable is required")
 	}
 
-	inputQueue := os.Getenv("INPUT_QUEUE")
-	if inputQueue == "" {
-		return image_downloader.Config{}, errors.New("INPUT_QUEUE environment variable is required")
+	imageDownloaderPrefix := os.Getenv("IMAGE_DOWNLOADER_PREFIX")
+	if imageDownloaderPrefix == "" {
+		return image_downloader.Config{}, errors.New("IMAGE_DOWNLOADER_PREFIX environment variable is required")
 	}
 
 	outputQueue := os.Getenv("OUTPUT_QUEUE")
@@ -30,11 +35,18 @@ func loadConfig() (image_downloader.Config, error) {
 		return image_downloader.Config{}, errors.New("OUTPUT_QUEUE environment variable is required")
 	}
 
+	bioFilterAmount, err := strconv.Atoi(os.Getenv("BIO_FILTER_AMOUNT"))
+	if err != nil {
+		return image_downloader.Config{}, errors.New("BIO_FILTER_AMOUNT environment variable is required and must be a number")
+	}
+
 	return image_downloader.Config{
-		MomHost:     momHost,
-		MomPort:     momPort,
-		InputQueue:  inputQueue,
-		OutputQueue: outputQueue,
+		Id:                    id,
+		MomHost:               momHost,
+		MomPort:               momPort,
+		ImageDownloaderPrefix: imageDownloaderPrefix,
+		OutputQueue:           outputQueue,
+		BioFilterAmount:       bioFilterAmount,
 	}, nil
 }
 

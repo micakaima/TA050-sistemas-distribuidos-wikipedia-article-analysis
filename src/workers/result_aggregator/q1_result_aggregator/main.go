@@ -37,6 +37,13 @@ func loadConfig() (aggregator.Config[*qresults.English2020Article], error) {
 		return aggregator.Config[*qresults.English2020Article]{}, errors.New("STORAGE_DIR environment variable is required")
 	}
 
+	expectedEOFs := 1
+	if amountStr := os.Getenv("ENGLISH_FILTER_AMOUNT"); amountStr != "" {
+		if val, err := strconv.Atoi(amountStr); err == nil && val > 0 {
+			expectedEOFs = val
+		}
+	}
+
 	return aggregator.Config[*qresults.English2020Article]{
 		MomHost:         momHost,
 		MomPort:         momPort,
@@ -46,9 +53,10 @@ func loadConfig() (aggregator.Config[*qresults.English2020Article], error) {
 		StorageName:     "q1",
 		QueryCode:       qresults.Q1Code,
 		ExpectedMsgCode: messages.Q1ResultCode,
-		ExpectedEOFs:    1,
+		ExpectedEOFs:    expectedEOFs,
 		Handler:         &qresults.Q1Result{},
 	}, nil
+
 }
 
 func run() int {

@@ -5,12 +5,16 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
-	"strings"
 
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/workers/bio_filter/bio_filter"
 )
 
 func loadConfig() (bio_filter.Config, error) {
+	id, err := strconv.Atoi(os.Getenv("ID"))
+	if err != nil {
+		return bio_filter.Config{}, errors.New("ID environment variable is required and must be a number")
+	}
+
 	momPort, err := strconv.Atoi(os.Getenv("MOM_PORT"))
 	if err != nil {
 		return bio_filter.Config{}, errors.New("MOM_PORT environment variable is required and must be a number")
@@ -21,27 +25,34 @@ func loadConfig() (bio_filter.Config, error) {
 		return bio_filter.Config{}, errors.New("MOM_HOST environment variable is required")
 	}
 
-	routingKeys := strings.Split(os.Getenv("ROUTING_KEYS"), ",")
-	if len(routingKeys) == 0 || routingKeys[0] == "" {
-		return bio_filter.Config{}, errors.New("ROUTING_KEYS environment variable is required and must be a comma-separated list")
+	bioFilterPrefix := os.Getenv("BIO_FILTER_PREFIX")
+	if bioFilterPrefix == "" {
+		return bio_filter.Config{}, errors.New("BIO_FILTER_PREFIX environment variable is required")
 	}
 
-	inputExchange := os.Getenv("INPUT_EXCHANGE")
-	if inputExchange == "" {
-		return bio_filter.Config{}, errors.New("INPUT_EXCHANGE environment variable is required")
+	imageDownloaderAmount, err := strconv.Atoi(os.Getenv("IMAGE_DOWNLOADER_AMOUNT"))
+	if err != nil {
+		return bio_filter.Config{}, errors.New("IMAGE_DOWNLOADER_AMOUNT environment variable is required and must be a number")
 	}
 
-	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if outputQueue == "" {
-		return bio_filter.Config{}, errors.New("OUTPUT_QUEUE environment variable is required")
+	imageDownloaderPrefix := os.Getenv("IMAGE_DOWNLOADER_PREFIX")
+	if imageDownloaderPrefix == "" {
+		return bio_filter.Config{}, errors.New("IMAGE_DOWNLOADER_PREFIX environment variable is required")
+	}
+
+	yearFilterAmount, err := strconv.Atoi(os.Getenv("YEAR_FILTER_AMOUNT"))
+	if err != nil {
+		return bio_filter.Config{}, errors.New("YEAR_FILTER_AMOUNT environment variable is required and must be a number")
 	}
 
 	return bio_filter.Config{
-		MomHost:       momHost,
-		MomPort:       momPort,
-		InputExchange: inputExchange,
-		OutputQueue:   outputQueue,
-		RoutingKeys:   routingKeys,
+		Id:                    id,
+		MomHost:               momHost,
+		MomPort:               momPort,
+		BioFilterPrefix:       bioFilterPrefix,
+		ImageDownloaderAmount: imageDownloaderAmount,
+		ImageDownloaderPrefix: imageDownloaderPrefix,
+		YearFilterAmount:      yearFilterAmount,
 	}, nil
 }
 
