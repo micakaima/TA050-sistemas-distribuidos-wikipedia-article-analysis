@@ -1,6 +1,8 @@
 package gateway
 
 import (
+	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -15,56 +17,62 @@ import (
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
 	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
 	qresult "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/querys_results"
+	article "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/raw_article"
 	utils "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
 type GatewayConfig struct {
-	ServerHost      string
-	ServerPort      string
-	InputQueueName  string
-	OutputQueueName string
-	MomHost         string
-	MomPort         int
-	ExpectedQueries int
+	ServerHost         string
+	ServerPort         string
+	ColumnFilterAmount int
+	ColumnFilterPrefix string
+	OutputQueueName    string
+	MomHost            string
+	MomPort            int
+	ExpectedQueries    int
 }
 
 type Gateway struct {
-	registry        clientregistry.ClientRegistry
-	inputQueue      middleware.Middleware
-	outputQueue     middleware.Middleware
-	listener        net.Listener
-	expectedQueries int
-	wg              sync.WaitGroup
-	running         atomic.Bool
+	registry             clientregistry.ClientRegistry
+	columnFilterExchange middleware.ExchangeMiddleware
+	columnFilterAmount   int
+	columnFilterPrefix   string
+	outputQueue          middleware.Middleware
+	listener             net.Listener
+	expectedQueries      int
+	wg                   sync.WaitGroup
+	running              atomic.Bool
 }
 
 func NewGateway(config GatewayConfig) (*Gateway, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
-	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueueName, connSettings)
+	columnFilterExchange, err := middleware.CreateExchangeMiddleware(config.ColumnFilterPrefix, []string{}, connSettings)
 	if err != nil {
 		return nil, err
 	}
 
 	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueueName, connSettings)
 	if err != nil {
-		inputQueue.Close()
+		columnFilterExchange.Close()
 		return nil, err
 	}
 
 	listener, err := net.Listen("tcp", config.ServerHost+":"+config.ServerPort)
 	if err != nil {
-		inputQueue.Close()
+		columnFilterExchange.Close()
 		outputQueue.Close()
 		return nil, err
 	}
 
 	gateway := &Gateway{
-		registry:        clientregistry.NewClientRegistry(),
-		inputQueue:      inputQueue,
-		outputQueue:     outputQueue,
-		listener:        listener,
-		expectedQueries: config.ExpectedQueries,
+		registry:             clientregistry.NewClientRegistry(),
+		columnFilterExchange: columnFilterExchange,
+		columnFilterAmount:   config.ColumnFilterAmount,
+		columnFilterPrefix:   config.ColumnFilterPrefix,
+		outputQueue:          outputQueue,
+		listener:             listener,
+		expectedQueries:      config.ExpectedQueries,
 	}
 	gateway.running.Store(true)
 	return gateway, nil
@@ -129,8 +137,8 @@ func (gateway *Gateway) handleShutdown() {
 		}
 	})
 	gateway.wg.Wait()
-	if err := gateway.inputQueue.Close(); err != nil {
-		slog.Debug("While closing input queue")
+	if err := gateway.columnFilterExchange.Close(); err != nil {
+		slog.Debug("While closing column filter exchange")
 	}
 	if err := gateway.outputQueue.Close(); err != nil {
 		slog.Debug("While closing output queue")
@@ -142,6 +150,10 @@ loop:
 	for {
 		msgType, err := external.ReadMsgCode(client.Conn)
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				slog.Debug("Client disconnected gracefully")
+				return
+			}
 			slog.Error("While reading message type", "err", err)
 			return
 		}
@@ -172,14 +184,29 @@ func (gateway *Gateway) handleArticlesBatch(client clientregistry.ClientState) e
 		return err
 	}
 
-	batchMessage, err := middleware.NewMessage(client.ClientID, messages.ArticlesBatchCode, &rawArticlesBatch)
-	if err != nil {
-		slog.Debug("While creating Raw Articles Batch message", "err", err)
-		return err
+	batchesByNode := make(map[int]article.RawArticlesBatch)
+	for _, rawArt := range rawArticlesBatch.Items {
+		rec := article.RawArticleToRecord(*rawArt)
+		targetNode := utils.GetTargetNodeByArticleID(rec.ArticleID, gateway.columnFilterAmount)
+		b, exists := batchesByNode[targetNode]
+		if !exists {
+			b = article.NewEmptyArticlesBatch(0)
+		}
+		b.Add(rawArt)
+		batchesByNode[targetNode] = b
 	}
-	if err := gateway.inputQueue.Send(*batchMessage); err != nil {
-		slog.Debug("While sending Raw Articles Batch message", "err", err)
-		return err
+
+	for node, batch := range batchesByNode {
+		batchMessage, err := middleware.NewMessage(client.ClientID, messages.ArticlesBatchCode, &batch)
+		if err != nil {
+			slog.Debug("While creating Raw Articles Batch message", "err", err)
+			return err
+		}
+		routingKey := utils.GenerateRoutingKey(gateway.columnFilterPrefix, node)
+		if err := gateway.columnFilterExchange.SendToKey(*batchMessage, routingKey); err != nil {
+			slog.Debug("While sending Raw Articles Batch message", "err", err)
+			return err
+		}
 	}
 
 	if err := external.WriteAck(client.Conn); err != nil {
@@ -198,9 +225,12 @@ func (gateway *Gateway) handleEOF(client clientregistry.ClientState) error {
 		slog.Debug("While creating EOF message", "err", err)
 		return err
 	}
-	if err := gateway.inputQueue.Send(*eofMessage); err != nil {
-		slog.Debug("While sending EOF message", "err", err)
-		return err
+	for n := 0; n < gateway.columnFilterAmount; n++ {
+		routingKey := utils.GenerateRoutingKey(gateway.columnFilterPrefix, n)
+		if err := gateway.columnFilterExchange.SendToKey(*eofMessage, routingKey); err != nil {
+			slog.Debug("While sending EOF message", "err", err)
+			return err
+		}
 	}
 
 	if err := external.WriteAck(client.Conn); err != nil {
@@ -213,8 +243,8 @@ func (gateway *Gateway) handleEOF(client clientregistry.ClientState) error {
 func (gateway *Gateway) handleClientResponse(msg middleware.Message, ack func(), nack func()) {
 	clientState, ok := gateway.registry.Get(msg.ClientID)
 	if !ok {
-		slog.Warn("No client is target for this message")
-		nack()
+		slog.Warn("No client is target for this message", "clientID", msg.ClientID, "msgCode", msg.MsgCode)
+		ack()
 		return
 	}
 

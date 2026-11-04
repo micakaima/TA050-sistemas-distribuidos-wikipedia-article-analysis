@@ -20,9 +20,14 @@ func loadConfig() (gateway.GatewayConfig, error) {
 		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "SERVER_PORT")
 	}
 
-	inputQueueName := os.Getenv("INPUT_QUEUE")
-	if inputQueueName == "" {
-		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "INPUT_QUEUE")
+	columnFilterAmount, err := strconv.Atoi(os.Getenv("COLUMN_FILTER_AMOUNT"))
+	if err != nil {
+		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "COLUMN_FILTER_AMOUNT")
+	}
+
+	columnFilterPrefix := os.Getenv("COLUMN_FILTER_PREFIX")
+	if columnFilterPrefix == "" {
+		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "COLUMN_FILTER_PREFIX")
 	}
 
 	outputQueueName := os.Getenv("OUTPUT_QUEUE")
@@ -41,14 +46,16 @@ func loadConfig() (gateway.GatewayConfig, error) {
 	}
 
 	return gateway.GatewayConfig{
-		ServerHost:      serverHost,
-		ServerPort:      serverPort,
-		InputQueueName:  inputQueueName,
-		OutputQueueName: outputQueueName,
-		MomHost:         momHost,
-		MomPort:         momPort,
-		ExpectedQueries: 5,
+		ServerHost:         serverHost,
+		ServerPort:         serverPort,
+		ColumnFilterAmount: columnFilterAmount,
+		ColumnFilterPrefix: columnFilterPrefix,
+		OutputQueueName:    outputQueueName,
+		MomHost:            momHost,
+		MomPort:            momPort,
+		ExpectedQueries:    5,
 	}, nil
+
 }
 
 func run() int {
