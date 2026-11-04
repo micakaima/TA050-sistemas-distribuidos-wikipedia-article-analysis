@@ -169,7 +169,15 @@ func (w *AboveAverageFilterWorker) handleEOF(msg middleware.Message) error {
 	})
 
 	if canSendResult {
-		return w.sendQuery5Result(msg.ClientID)
+		if err := w.sendQuery5Result(msg.ClientID); err != nil {
+			return err
+		}
+		if err := w.sendEOF(msg.ClientID); err != nil {
+			return err
+		}
+		utils.WithLock(&w.lock, func() {
+			delete(w.clientStates, msg.ClientID)
+		})
 	}
 	return nil
 }
