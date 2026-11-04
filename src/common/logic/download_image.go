@@ -2,11 +2,13 @@ package logic
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,16 +29,32 @@ type WikiSummaryResponse struct {
 	} `json:"thumbnail"`
 }
 
-func calculateBackoff(attempt int) time.Duration {
-	return time.Second * time.Duration(1<<uint(attempt)) // Exponential backoff: 1s, 2s, 4s, 8s, ...
+func calculateBackoff(attempt int, articleID int) time.Duration {
+	jitter := time.Duration(articleID%1000) * time.Millisecond
+	return time.Second*time.Duration(1<<uint(attempt)) + jitter // Exponential backoff: 1s, 2s, 4s, 8s, ...
 }
 
-func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAgent string) ([]byte, error) {
+func areTooManyRequests(resp *http.Response, articleID int) bool {
+	if resp.StatusCode == http.StatusTooManyRequests {
+		retryAfter := resp.Header.Get("Retry-After")
+		if retryAfter != "" {
+			retryAfterSeconds, err := strconv.Atoi(retryAfter)
+			if err == nil {
+				slog.Warn("Received 429 Too Many Requests, retrying after specified time", "article_id", articleID, "retry_after", retryAfterSeconds)
+				time.Sleep(time.Duration(retryAfterSeconds) * time.Second)
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAgent string, articleID int) ([]byte, error) {
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		req, err := http.NewRequest(http.MethodGet, targetUrl, nil)
 		if err != nil {
 			slog.Error("Failed to create HTTP request", "err", err)
-			return nil, fmt.Errorf(InternalErrorPrefix + "failed to create HTTP request: " + err.Error())
+			return nil, fmt.Errorf("%sfailed to create HTTP request: %w", InternalErrorPrefix, err)
 		}
 
 		req.Header.Set("User-Agent", userAgent)
@@ -45,7 +63,7 @@ func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAge
 		if err != nil {
 			if attempt < maxRetries-1 {
 				slog.Warn("HTTP request failed, retrying", "attempt", attempt+1, "err", err)
-				time.Sleep(calculateBackoff(attempt))
+				time.Sleep(calculateBackoff(attempt, articleID))
 				continue
 			}
 			break
@@ -56,16 +74,20 @@ func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAge
 			return body, nil
 		}
 
+		if areTooManyRequests(resp, articleID) {
+			continue
+		}
+
 		slog.Warn("HTTP request failed", "status", resp.StatusCode, "attempt", attempt+1, "err", err)
 
 		if attempt < maxRetries-1 {
-			time.Sleep(calculateBackoff(attempt))
+			time.Sleep(calculateBackoff(attempt, articleID))
 			continue
 		}
 		slog.Error("HTTP request failed after all retries", "status", resp.StatusCode, "err", err)
 		break
 	}
-	return nil, fmt.Errorf(ExternalAPIError)
+	return nil, errors.New(ExternalAPIError)
 }
 
 func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries int, clientTimeout int, userAgent string) qresults.Q2Result {
@@ -81,6 +103,13 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 		if r.URL == "" {
 			slog.Error("Missing URL for article", "article_id", r.ArticleID, "name", r.Name)
 			result.Error = InternalErrorPrefix + "missing URL"
+			results.Add(result)
+			continue
+		}
+		id, err := strconv.Atoi(r.ArticleID)
+		if err != nil {
+			slog.Error("Invalid ArticleID format", "article_id", r.ArticleID, "name", r.Name, "err", err)
+			result.Error = InternalErrorPrefix + "invalid ArticleID format"
 			results.Add(result)
 			continue
 		}
@@ -101,7 +130,7 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 
 		apiURL := fmt.Sprintf("https://%s.wikipedia.org/api/rest_v1/page/summary/%s", language, url.PathEscape(title))
 
-		bodyBytes, err := requestBytes(client, apiURL, maxRetries, userAgent)
+		bodyBytes, err := requestBytes(client, apiURL, maxRetries, userAgent, id)
 		if err != nil {
 			result.Error = err.Error()
 			results.Add(result)
@@ -124,7 +153,7 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 			continue
 		}
 
-		imageBytes, err := requestBytes(client, summary.Thumbnail.Source, maxRetries, userAgent)
+		imageBytes, err := requestBytes(client, summary.Thumbnail.Source, maxRetries, userAgent, id)
 		if err != nil {
 			result.Error = err.Error()
 			results.Add(result)
