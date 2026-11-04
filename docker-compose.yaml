@@ -338,6 +338,9 @@ services:
       - MOM_PORT=5672
       - INPUT_QUEUE=image_download_queue
       - OUTPUT_QUEUE=q2_results_queue
+      - MAX_DOWNLOAD_RETRIES=3
+      - CLIENT_TIMEOUT=10
+      - USER_AGENT=Wikipedia-Article-Analysis/1.0
 
   q1_aggregator:
     build:

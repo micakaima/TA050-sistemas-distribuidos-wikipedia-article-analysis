@@ -216,7 +216,7 @@ func obtainBio2020Articles(records []record.Record) ([]qresult.ImageArticle, err
 			})
 		}
 	}
-	q2Result := download.DownloadImage(imagesCandidates)
+	q2Result := download.DownloadImage(imagesCandidates, 3, 10)
 	bio2020Articles := make([]qresult.ImageArticle, 0, q2Result.ResultArticles.Len())
 	for _, a := range q2Result.ResultArticles.Items {
 		bio2020Articles = append(bio2020Articles, *a)

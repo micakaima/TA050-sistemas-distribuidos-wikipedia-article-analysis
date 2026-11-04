@@ -13,15 +13,21 @@ import (
 )
 
 type Config struct {
-	MomHost     string
-	MomPort     int
-	InputQueue  string
-	OutputQueue string
+	MomHost            string
+	MomPort            int
+	InputQueue         string
+	OutputQueue        string
+	MaxDownloadRetries int
+	ClientTimeout      int
+	UserAgent          string
 }
 
 type ImageDownloaderWorker struct {
-	inputQueue  middleware.Middleware
-	outputQueue middleware.Middleware
+	inputQueue         middleware.Middleware
+	outputQueue        middleware.Middleware
+	maxDownloadRetries int
+	clientTimeout      int
+	userAgent          string
 }
 
 func New(config Config) (*ImageDownloaderWorker, error) {
@@ -37,8 +43,11 @@ func New(config Config) (*ImageDownloaderWorker, error) {
 		return nil, err
 	}
 	return &ImageDownloaderWorker{
-		inputQueue:  inputQueue,
-		outputQueue: outputQueue,
+		inputQueue:         inputQueue,
+		outputQueue:        outputQueue,
+		maxDownloadRetries: config.MaxDownloadRetries,
+		clientTimeout:      config.ClientTimeout,
+		userAgent:          config.UserAgent,
 	}, nil
 }
 
@@ -70,7 +79,7 @@ func (w *ImageDownloaderWorker) handleMessage(msg middleware.Message, ack, nack 
 			nack()
 			return
 		}
-		result := logic.DownloadImage(*batch)
+		result := logic.DownloadImage(*batch, w.maxDownloadRetries, w.clientTimeout, w.userAgent)
 		resultMessage, err := middleware.NewMessage(msg.ClientID, messages.Q2ResultCode, &result)
 		if err != nil || w.outputQueue.Send(*resultMessage) != nil {
 			nack()
