@@ -40,6 +40,9 @@ func (m *exchangeMiddleware) StartConsuming(callbackFunc func(msg Message, ack f
 }
 
 func (m *exchangeMiddleware) Send(msg Message) error {
+	m.sendMu.Lock()
+	defer m.sendMu.Unlock()
+
 	for _, key := range m.keys {
 		err := m.channel.Publish(
 			m.exchange,
@@ -62,6 +65,9 @@ func (m *exchangeMiddleware) Send(msg Message) error {
 }
 
 func (m *exchangeMiddleware) SendToKey(msg Message, routingKey string) error {
+	m.sendMu.Lock()
+	defer m.sendMu.Unlock()
+
 	err := m.channel.Publish(
 		m.exchange,
 		routingKey,

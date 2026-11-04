@@ -14,6 +14,9 @@ func (m *queueMiddleware) StartConsuming(callbackFunc func(msg Message, ack func
 }
 
 func (m *queueMiddleware) Send(msg Message) error {
+	m.sendMu.Lock()
+	defer m.sendMu.Unlock()
+
 	err := m.channel.Publish(
 		"",          // default exchange
 		m.queueName, // routing key apunta directo a la cola de esta instancia

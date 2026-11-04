@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	inner "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
@@ -16,6 +17,7 @@ type commonMiddleware struct {
 	connection  *amqp.Connection
 	channel     *amqp.Channel
 	consumerTag string
+	sendMu      sync.Mutex
 }
 
 func (m *commonMiddleware) consume(queueName string, callbackFunc func(msg Message, ack func(), nack func())) error {
@@ -73,6 +75,9 @@ func (m *commonMiddleware) StopConsuming() error {
 }
 
 func (m *commonMiddleware) Close() error {
+	m.sendMu.Lock()
+	defer m.sendMu.Unlock()
+
 	if m.channel != nil {
 		_ = m.channel.Close()
 	}

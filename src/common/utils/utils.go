@@ -51,3 +51,14 @@ func GetTargetNodeByWord(word string, amount int) int {
 	hashValue := h.Sum64()
 	return int(hashValue % uint64(amount))
 }
+
+// GetTargetNodeByArticleID mapea un article ID a un nodo 0..amount-1 de forma determinista.
+// Se usa para distribuir artículos entre instancias de workers stateless.
+func GetTargetNodeByArticleID(articleID string, amount int) int {
+	h := fnv.New64a()
+	h.Write([]byte(FIXED_SEED))
+	fmt.Fprintf(h, "-%s", articleID)
+
+	hashValue := h.Sum64()
+	return int(hashValue % uint64(amount))
+}
