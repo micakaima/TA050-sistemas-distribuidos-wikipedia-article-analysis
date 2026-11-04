@@ -16,18 +16,24 @@ import (
 )
 
 type Config struct {
-	Id                 int
-	MomHost            string
-	MomPort            int
-	OutputQ1ToQ2       string
-	OutputQ3ToQ5       string
-	ColumnFilterPrefix string
+	Id                        int
+	MomHost                   string
+	MomPort                   int
+	ColumnFilterPrefix        string
+	YearFilterAmount          int
+	YearFilterPrefix          string
+	VocabularyExtractorAmount int
+	VocabularyExtractorPrefix string
 }
 
 type ColumnFilterWorker struct {
-	inputExchange middleware.Middleware
-	outputQ1ToQ2  middleware.Middleware
-	outputQ3ToQ5  middleware.Middleware
+	inputExchange             middleware.Middleware
+	outputExchangeQ1ToQ2      middleware.ExchangeMiddleware
+	outputExchangeQ3ToQ5      middleware.ExchangeMiddleware
+	yearFilterAmount          int
+	yearFilterPrefix          string
+	vocabularyExtractorAmount int
+	vocabularyExtractorPrefix string
 }
 
 func New(config Config) (*ColumnFilterWorker, error) {
@@ -38,21 +44,25 @@ func New(config Config) (*ColumnFilterWorker, error) {
 	if err != nil {
 		return nil, err
 	}
-	outputQ1ToQ2, err := middleware.CreateQueueMiddleware(config.OutputQ1ToQ2, connSettings)
+	outputExchangeQ1ToQ2, err := middleware.CreateExchangeMiddleware(config.YearFilterPrefix, []string{}, connSettings)
 	if err != nil {
 		inputExchange.Close()
 		return nil, err
 	}
-	outputQ3ToQ5, err := middleware.CreateQueueMiddleware(config.OutputQ3ToQ5, connSettings)
+	outputExchangeQ3ToQ5, err := middleware.CreateExchangeMiddleware(config.VocabularyExtractorPrefix, []string{}, connSettings)
 	if err != nil {
 		inputExchange.Close()
-		outputQ1ToQ2.Close()
+		outputExchangeQ1ToQ2.Close()
 		return nil, err
 	}
 	return &ColumnFilterWorker{
-		inputExchange: inputExchange,
-		outputQ1ToQ2:  outputQ1ToQ2,
-		outputQ3ToQ5:  outputQ3ToQ5,
+		inputExchange:             inputExchange,
+		outputExchangeQ1ToQ2:      outputExchangeQ1ToQ2,
+		outputExchangeQ3ToQ5:      outputExchangeQ3ToQ5,
+		yearFilterAmount:          config.YearFilterAmount,
+		yearFilterPrefix:          config.YearFilterPrefix,
+		vocabularyExtractorAmount: config.VocabularyExtractorAmount,
+		vocabularyExtractorPrefix: config.VocabularyExtractorPrefix,
 	}, nil
 }
 
@@ -88,13 +98,13 @@ func (w *ColumnFilterWorker) handleSignals(done chan struct{}) {
 
 func (w *ColumnFilterWorker) shutdown() {
 	if err := w.inputExchange.Close(); err != nil {
-		slog.Error("While closing input queue", "err", err)
+		slog.Error("While closing input exchange", "err", err)
 	}
-	if err := w.outputQ1ToQ2.Close(); err != nil {
-		slog.Error("While closing output queue", "err", err)
+	if err := w.outputExchangeQ1ToQ2.Close(); err != nil {
+		slog.Error("While closing output exchange Q1ToQ2", "err", err)
 	}
-	if err := w.outputQ3ToQ5.Close(); err != nil {
-		slog.Error("While closing output queue", "err", err)
+	if err := w.outputExchangeQ3ToQ5.Close(); err != nil {
+		slog.Error("While closing output exchange Q3ToQ5", "err", err)
 	}
 }
 
@@ -129,26 +139,52 @@ func (w *ColumnFilterWorker) handleArticlesBatch(msg middleware.Message) error {
 	records := article.ArticlesBatchToRecords(*rawArticlesBatch)
 	recordsQ1ToQ2, recordsQ3ToQ5 := filterByQuery(records)
 
-	// Envio de batch de mensajes YearCandidate, para resolver querys Q1-Q2
-	q1q2Message, err := middleware.NewMessage(msg.ClientID, messages.YearCandidateCode, &recordsQ1ToQ2)
-	if err != nil {
-		slog.Debug("While creating Year Candidate Batch message", "err", err)
-		return err
+	// Agrupar YearCandidate por target node para Q1-Q2
+	q1q2ByNode := make(map[int]generic.Batch[*messages.YearCandidate])
+	for _, item := range recordsQ1ToQ2.Items {
+		targetNode := utils.GetTargetNodeByArticleID(item.ArticleID, w.yearFilterAmount)
+		b, exists := q1q2ByNode[targetNode]
+		if !exists {
+			b = messages.NewEmptyYearCandidateBatch(0)
+		}
+		b.Add(item)
+		q1q2ByNode[targetNode] = b
 	}
-	if err := w.outputQ1ToQ2.Send(*q1q2Message); err != nil {
-		slog.Debug("While sending Year Candidate Batch message", "err", err)
-		return err
+	for node, batch := range q1q2ByNode {
+		q1q2Message, err := middleware.NewMessage(msg.ClientID, messages.YearCandidateCode, &batch)
+		if err != nil {
+			slog.Debug("While creating Year Candidate Batch message", "err", err)
+			return err
+		}
+		routingKey := utils.GenerateRoutingKey(w.yearFilterPrefix, node)
+		if err := w.outputExchangeQ1ToQ2.SendToKey(*q1q2Message, routingKey); err != nil {
+			slog.Debug("While sending Year Candidate Batch message", "err", err)
+			return err
+		}
 	}
 
-	// Envio de batch de mensajes RawAbstract, para resolver querys Q3-Q5
-	q3q5Message, err := middleware.NewMessage(msg.ClientID, messages.RawAbstractCode, &recordsQ3ToQ5)
-	if err != nil {
-		slog.Debug("While creating Raw Abstract Batch message", "err", err)
-		return err
+	// Agrupar RawAbstract por target node para Q3-Q5
+	q3q5ByNode := make(map[int]generic.Batch[*messages.RawAbstract])
+	for _, item := range recordsQ3ToQ5.Items {
+		targetNode := utils.GetTargetNodeByArticleID(item.ArticleID, w.vocabularyExtractorAmount)
+		b, exists := q3q5ByNode[targetNode]
+		if !exists {
+			b = messages.NewEmptyRawAbstractBatch(0)
+		}
+		b.Add(item)
+		q3q5ByNode[targetNode] = b
 	}
-	if err := w.outputQ3ToQ5.Send(*q3q5Message); err != nil {
-		slog.Debug("While sending Raw Abstract Batch message", "err", err)
-		return err
+	for node, batch := range q3q5ByNode {
+		q3q5Message, err := middleware.NewMessage(msg.ClientID, messages.RawAbstractCode, &batch)
+		if err != nil {
+			slog.Debug("While creating Raw Abstract Batch message", "err", err)
+			return err
+		}
+		routingKey := utils.GenerateRoutingKey(w.vocabularyExtractorPrefix, node)
+		if err := w.outputExchangeQ3ToQ5.SendToKey(*q3q5Message, routingKey); err != nil {
+			slog.Debug("While sending Raw Abstract Batch message", "err", err)
+			return err
+		}
 	}
 
 	return nil
@@ -162,14 +198,23 @@ func (w *ColumnFilterWorker) handleEOF(msg middleware.Message) error {
 		slog.Debug("While creating EOF message", "err", err)
 		return err
 	}
-	if err := w.outputQ1ToQ2.Send(*eofMessage); err != nil {
-		slog.Debug("While sending EOF message", "err", err)
-		return err
+
+	for n := 0; n < w.yearFilterAmount; n++ {
+		routingKey := utils.GenerateRoutingKey(w.yearFilterPrefix, n)
+		if err := w.outputExchangeQ1ToQ2.SendToKey(*eofMessage, routingKey); err != nil {
+			slog.Debug("While sending EOF message to YearFilter", "err", err)
+			return err
+		}
 	}
-	if err := w.outputQ3ToQ5.Send(*eofMessage); err != nil {
-		slog.Debug("While sending EOF message", "err", err)
-		return err
+
+	for n := 0; n < w.vocabularyExtractorAmount; n++ {
+		routingKey := utils.GenerateRoutingKey(w.vocabularyExtractorPrefix, n)
+		if err := w.outputExchangeQ3ToQ5.SendToKey(*eofMessage, routingKey); err != nil {
+			slog.Debug("While sending EOF message to VocabularyExtractor", "err", err)
+			return err
+		}
 	}
+
 	return nil
 }
 

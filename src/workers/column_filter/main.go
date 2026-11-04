@@ -25,29 +25,42 @@ func loadConfig() (column_filter.Config, error) {
 		return column_filter.Config{}, errors.New("MOM_HOST environment variable is required")
 	}
 
-	outQ1ToQ2 := os.Getenv("OUTPUT_QUEUE_Q1_TO_Q2")
-	if outQ1ToQ2 == "" {
-		return column_filter.Config{}, errors.New("OUTPUT_QUEUE_Q1_TO_Q2 environment variable is required")
-	}
-
-	outQ3ToQ5 := os.Getenv("OUTPUT_QUEUE_Q3_TO_Q5")
-	if outQ3ToQ5 == "" {
-		return column_filter.Config{}, errors.New("OUTPUT_QUEUE_Q3_TO_Q5 environment variable is required")
-	}
-
 	columnFilterPrefix := os.Getenv("COLUMN_FILTER_PREFIX")
 	if columnFilterPrefix == "" {
 		return column_filter.Config{}, errors.New("COLUMN_FILTER_PREFIX environment variable is required")
 	}
 
+	yearFilterAmount, err := strconv.Atoi(os.Getenv("YEAR_FILTER_AMOUNT"))
+	if err != nil {
+		return column_filter.Config{}, errors.New("YEAR_FILTER_AMOUNT environment variable is required and must be a number")
+	}
+
+	yearFilterPrefix := os.Getenv("YEAR_FILTER_PREFIX")
+	if yearFilterPrefix == "" {
+		return column_filter.Config{}, errors.New("YEAR_FILTER_PREFIX environment variable is required")
+	}
+
+	vocabularyExtractorAmount, err := strconv.Atoi(os.Getenv("VOCABULARY_EXTRACTOR_AMOUNT"))
+	if err != nil {
+		return column_filter.Config{}, errors.New("VOCABULARY_EXTRACTOR_AMOUNT environment variable is required and must be a number")
+	}
+
+	vocabularyExtractorPrefix := os.Getenv("VOCABULARY_EXTRACTOR_PREFIX")
+	if vocabularyExtractorPrefix == "" {
+		return column_filter.Config{}, errors.New("VOCABULARY_EXTRACTOR_PREFIX environment variable is required")
+	}
+
 	return column_filter.Config{
-		Id:                 id,
-		MomHost:            momHost,
-		MomPort:            momPort,
-		OutputQ1ToQ2:       outQ1ToQ2,
-		OutputQ3ToQ5:       outQ3ToQ5,
-		ColumnFilterPrefix: columnFilterPrefix,
+		Id:                        id,
+		MomHost:                   momHost,
+		MomPort:                   momPort,
+		ColumnFilterPrefix:        columnFilterPrefix,
+		YearFilterAmount:          yearFilterAmount,
+		YearFilterPrefix:          yearFilterPrefix,
+		VocabularyExtractorAmount: vocabularyExtractorAmount,
+		VocabularyExtractorPrefix: vocabularyExtractorPrefix,
 	}, nil
+
 }
 
 func run() int {
