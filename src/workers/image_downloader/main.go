@@ -40,6 +40,21 @@ func loadConfig() (image_downloader.Config, error) {
 		return image_downloader.Config{}, errors.New("BIO_FILTER_AMOUNT environment variable is required and must be a number")
 	}
 
+	maxDownloadRetries, err := strconv.Atoi(os.Getenv("MAX_DOWNLOAD_RETRIES"))
+	if err != nil {
+		return image_downloader.Config{}, errors.New("MAX_DOWNLOAD_RETRIES environment variable is required and must be a number")
+	}
+
+	clientTimeout, err := strconv.Atoi(os.Getenv("CLIENT_TIMEOUT"))
+	if err != nil {
+		return image_downloader.Config{}, errors.New("CLIENT_TIMEOUT environment variable is required and must be a number")
+	}
+
+	userAgent := os.Getenv("USER_AGENT")
+	if userAgent == "" {
+		return image_downloader.Config{}, errors.New("USER_AGENT environment variable is required")
+	}
+
 	return image_downloader.Config{
 		Id:                    id,
 		MomHost:               momHost,
@@ -47,6 +62,9 @@ func loadConfig() (image_downloader.Config, error) {
 		ImageDownloaderPrefix: imageDownloaderPrefix,
 		OutputQueue:           outputQueue,
 		BioFilterAmount:       bioFilterAmount,
+		MaxDownloadRetries:    maxDownloadRetries,
+		ClientTimeout:         clientTimeout,
+		UserAgent:             userAgent,
 	}, nil
 }
 

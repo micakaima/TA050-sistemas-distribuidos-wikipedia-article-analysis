@@ -12,6 +12,8 @@ services:
       - SERVER_HOST=gateway
       - SERVER_PORT=5678
       - BATCH_SIZE=5
+      - CONNECTION_ATTEMPS=3
+      - CONNECTION_ATTEMPTS_DELAY_MS=300
     volumes:
       - ./data/input:/input
       - ./data/output:/output
@@ -29,6 +31,8 @@ services:
       - SERVER_HOST=gateway
       - SERVER_PORT=5678
       - BATCH_SIZE=5
+      - CONNECTION_ATTEMPS=3
+      - CONNECTION_ATTEMPTS_DELAY_MS=300
     volumes:
       - ./data/input:/input
       - ./data/output:/output
@@ -46,6 +50,8 @@ services:
       - SERVER_HOST=gateway
       - SERVER_PORT=5678
       - BATCH_SIZE=5
+      - CONNECTION_ATTEMPS=3
+      - CONNECTION_ATTEMPTS_DELAY_MS=300
     volumes:
       - ./data/input:/input
       - ./data/output:/output
@@ -405,6 +411,9 @@ services:
       - IMAGE_DOWNLOADER_PREFIX=image_downloader
       - OUTPUT_QUEUE=q2_results_queue
       - BIO_FILTER_AMOUNT=2
+      - MAX_DOWNLOAD_RETRIES=3
+      - CLIENT_TIMEOUT=10
+      - USER_AGENT=Wikipedia-Article-Analysis/1.0
 
   image_downloader_1:
     build:
@@ -420,6 +429,9 @@ services:
       - IMAGE_DOWNLOADER_PREFIX=image_downloader
       - OUTPUT_QUEUE=q2_results_queue
       - BIO_FILTER_AMOUNT=2
+      - MAX_DOWNLOAD_RETRIES=3
+      - CLIENT_TIMEOUT=10
+      - USER_AGENT=Wikipedia-Article-Analysis/1.0
 
   q1_aggregator:
     build:

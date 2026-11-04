@@ -1,18 +1,18 @@
-import os
-import kagglehub
 import argparse
+import os
 import shutil
+import kagglehub
 
 KAGGLE_DATASET_BASE_PATH = "wikimedia-foundation/wikipedia-structured-contents"
 KAGGLE_EN_FILE_BASE_PATH = "enwiki/data/enwiki_namespace_0_"
 KAGGLE_FR_FILE_BASE_PATH = "frwiki/data/frwiki_namespace_0_"
 INPUT_BASE_PATH = "./data/input"
 
-NUM_CLIENTS=1
-EN_FILES_SAMPLE_AMOUNT=1
-FR_FILES_SAMPLE_AMOUNT=1
+NUM_CLIENTS = 3
+EN_FILES_SAMPLE_AMOUNT = 1
+FR_FILES_SAMPLE_AMOUNT = 1
 
-# Permite generar archivos parquet de input para un cliente/s.
+# Permite generar los MISMOS archivos parquet de input para todos los clientes.
 #   - Recibe como argumento '-en' la cantidad de archivos parquet en ingles a descargar.
 #   - Recibe como argumento '-fr' la cantidad de archivos parquet en frances a descargar.
 #   - Recibe como argumento '-c' el 'ID' del cliente/dataset (ej. '-c 0' genera el directorio input/input_0).
@@ -36,17 +36,18 @@ def create_client_dir(client_id):
     return client_dir_name
 
 def download_and_distribute(file_base_path, sample_amount, client_dirs):
-    idx = 0
-    for _, target_dir in enumerate(client_dirs):
-        for _ in range(sample_amount):
-            file_name = f"{file_base_path}{idx:05}.parquet"
-            try:
-                dataset_path = kagglehub.dataset_download(KAGGLE_DATASET_BASE_PATH, path=file_name)
+    for i in range(sample_amount):
+        file_name = f"{file_base_path}{i:05}.parquet"
+        try:
+            dataset_path = kagglehub.dataset_download(KAGGLE_DATASET_BASE_PATH, path=file_name)
+            
+            for target_dir in client_dirs:
                 output_filename = os.path.join(target_dir, os.path.basename(file_name))
-                os.replace(dataset_path, output_filename)
-            except Exception as e:
-                print(f"[ERROR] While processing {file_name}: {e}")
-            idx += 1
+                shutil.copy(dataset_path, output_filename)
+                
+            print(f"[INFO] Archivo {file_name} distribuido a todos los clientes.")
+        except Exception as e:
+            print(f"[ERROR] While processing {file_name}: {e}")
 
 def main():
     clean_old_inputs()
