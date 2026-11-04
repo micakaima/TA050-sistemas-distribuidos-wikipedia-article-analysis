@@ -20,6 +20,7 @@ type YearSplitterConfig struct {
 	MomHost                   string
 	MomPort                   int
 	InputQueue                string
+	VocabularyExtractorAmount int
 	OldArticlesAveragerAmount int
 	OldArticlesAveragerPrefix string
 	AboveAverageFilterAmount  int
@@ -30,6 +31,8 @@ type YearSplitterWorker struct {
 	inputQueue                middleware.Middleware
 	outputExchangeOld         middleware.ExchangeMiddleware
 	outputExchangeNew         middleware.ExchangeMiddleware
+	recvEofCountMap           map[uint64]int
+	vocabularyExtractorAmount int
 	oldArticlesAveragerAmount int
 	oldArticlesAveragerPrefix string
 	aboveAverageFilterAmount  int
@@ -61,6 +64,8 @@ func New(config YearSplitterConfig) (*YearSplitterWorker, error) {
 		inputQueue:                inputQueue,
 		outputExchangeOld:         outputExchangeOld,
 		outputExchangeNew:         outputExchangeNew,
+		recvEofCountMap:           map[uint64]int{},
+		vocabularyExtractorAmount: config.VocabularyExtractorAmount,
 		oldArticlesAveragerAmount: config.OldArticlesAveragerAmount,
 		oldArticlesAveragerPrefix: config.OldArticlesAveragerPrefix,
 		aboveAverageFilterAmount:  config.AboveAverageFilterAmount,
@@ -162,7 +167,13 @@ func (w *YearSplitterWorker) handleWordCount(msg middleware.Message) error {
 }
 
 func (w *YearSplitterWorker) handleEOF(msg middleware.Message) error {
-	slog.Info("Received EOF message")
+	w.recvEofCountMap[msg.ClientID]++
+	if w.recvEofCountMap[msg.ClientID] < w.vocabularyExtractorAmount {
+		return nil
+	}
+	delete(w.recvEofCountMap, msg.ClientID)
+
+	slog.Info("Received all EOF messages from VocabularyExtractor")
 	eof := messages.EofMsg{}
 	eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
 	if err != nil {

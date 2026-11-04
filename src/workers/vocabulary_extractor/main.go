@@ -11,6 +11,11 @@ import (
 )
 
 func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
+	id, err := strconv.Atoi(os.Getenv("ID"))
+	if err != nil {
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "ID")
+	}
+
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
 		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_HOST")
@@ -21,9 +26,9 @@ func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
 		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_PORT")
 	}
 
-	inputQueue := os.Getenv("INPUT_QUEUE")
-	if inputQueue == "" {
-		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "INPUT_QUEUE")
+	vocabularyExtractorPrefix := os.Getenv("VOCABULARY_EXTRACTOR_PREFIX")
+	if vocabularyExtractorPrefix == "" {
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "VOCABULARY_EXTRACTOR_PREFIX")
 	}
 
 	outputQueueQ5 := os.Getenv("OUTPUT_QUEUE_Q5")
@@ -57,9 +62,10 @@ func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
 	}
 
 	return vextractor.VocabularyExtractorConfig{
+		Id:                          id,
 		MomHost:                     momHost,
 		MomPort:                     momPort,
-		InputQueue:                  inputQueue,
+		VocabularyExtractorPrefix:   vocabularyExtractorPrefix,
 		OutputQueueQ5:               outputQueueQ5,
 		SharedWordsAggregatorAmount: sharedWordsAggregatorAmount,
 		SharedWordsAggregatorPrefix: sharedWordsAggregatorPrefix,

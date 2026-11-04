@@ -26,6 +26,11 @@ func loadConfig() (ysplitter.YearSplitterConfig, error) {
 		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "INPUT_QUEUE")
 	}
 
+	vocabularyExtractorAmount, err := strconv.Atoi(os.Getenv("VOCABULARY_EXTRACTOR_AMOUNT"))
+	if err != nil {
+		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "VOCABULARY_EXTRACTOR_AMOUNT")
+	}
+
 	oldArticlesAveragerAmount, err := strconv.Atoi(os.Getenv("OLD_ARTICLES_AVERAGER_AMOUNT"))
 	if err != nil {
 		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "OLD_ARTICLES_AVERAGER_AMOUNT")
@@ -50,11 +55,13 @@ func loadConfig() (ysplitter.YearSplitterConfig, error) {
 		MomHost:                   momHost,
 		MomPort:                   momPort,
 		InputQueue:                inputQueue,
+		VocabularyExtractorAmount: vocabularyExtractorAmount,
 		OldArticlesAveragerAmount: oldArticlesAveragerAmount,
 		OldArticlesAveragerPrefix: oldArticlesAveragerPrefix,
 		AboveAverageFilterAmount:  aboveAverageFilterAmount,
 		AboveAverageFilterPrefix:  aboveAverageFilterPrefix,
 	}, nil
+
 }
 
 func run() int {

@@ -22,13 +22,16 @@ type PartialTopAggregatorConfig struct {
 	MomPort                    int
 	PartialTopAggregatorPrefix string
 	OutputQueue                string
+	VocabularyExtractorAmount  int
 }
 
 type PartialTopAggregatorWorker struct {
-	inputExchange middleware.Middleware
-	outputQueue   middleware.Middleware
-	clientStates  map[uint64]map[string]uint32
-	lock          sync.Mutex
+	inputExchange             middleware.Middleware
+	outputQueue               middleware.Middleware
+	clientStates              map[uint64]map[string]uint32
+	lock                      sync.Mutex
+	recvEofCountMap           map[uint64]int
+	vocabularyExtractorAmount int
 }
 
 func New(config PartialTopAggregatorConfig) (*PartialTopAggregatorWorker, error) {
@@ -47,10 +50,12 @@ func New(config PartialTopAggregatorConfig) (*PartialTopAggregatorWorker, error)
 	}
 
 	return &PartialTopAggregatorWorker{
-		inputExchange: inputExchange,
-		outputQueue:   outputQueue,
-		clientStates:  map[uint64]map[string]uint32{},
-		lock:          sync.Mutex{},
+		inputExchange:             inputExchange,
+		outputQueue:               outputQueue,
+		clientStates:              map[uint64]map[string]uint32{},
+		lock:                      sync.Mutex{},
+		recvEofCountMap:           map[uint64]int{},
+		vocabularyExtractorAmount: config.VocabularyExtractorAmount,
 	}, nil
 }
 
@@ -102,6 +107,17 @@ func (w *PartialTopAggregatorWorker) handleMessage(msg middleware.Message, ack, 
 			return
 		}
 	case messages.EOFCode:
+		shouldFinish := utils.WithLockAndReturn(&w.lock, func() bool {
+			w.recvEofCountMap[msg.ClientID]++
+			return w.recvEofCountMap[msg.ClientID] >= w.vocabularyExtractorAmount
+		})
+		if !shouldFinish {
+			ack()
+			return
+		}
+		utils.WithLock(&w.lock, func() {
+			delete(w.recvEofCountMap, msg.ClientID)
+		})
 		if err := w.handleEOF(msg); err != nil {
 			slog.Error("While handling EOF message")
 			nack()

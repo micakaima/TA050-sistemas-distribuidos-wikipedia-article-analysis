@@ -36,12 +36,20 @@ func loadConfig() (aggregator.SharedWordsAggregatorConfig, error) {
 		return aggregator.SharedWordsAggregatorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE")
 	}
 
+	vocabularyExtractorAmount := 1
+	if amountStr := os.Getenv("VOCABULARY_EXTRACTOR_AMOUNT"); amountStr != "" {
+		if val, err := strconv.Atoi(amountStr); err == nil && val > 0 {
+			vocabularyExtractorAmount = val
+		}
+	}
+
 	return aggregator.SharedWordsAggregatorConfig{
 		Id:                          id,
 		MomHost:                     momHost,
 		MomPort:                     momPort,
 		SharedWordsAggregatorPrefix: sharedWordsAggregatorPrefix,
 		OutputQueue:                 outputQueue,
+		VocabularyExtractorAmount:   vocabularyExtractorAmount,
 	}, nil
 }
 

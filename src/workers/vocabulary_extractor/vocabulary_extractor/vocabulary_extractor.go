@@ -19,9 +19,10 @@ import (
 const PUNCTUATION_SYMBOLS = "-.,():;!?[]{}'\""
 
 type VocabularyExtractorConfig struct {
+	Id                          int
 	MomHost                     string
 	MomPort                     int
-	InputQueue                  string
+	VocabularyExtractorPrefix   string
 	OutputQueueQ5               string
 	SharedWordsAggregatorAmount int
 	SharedWordsAggregatorPrefix string
@@ -31,7 +32,7 @@ type VocabularyExtractorConfig struct {
 }
 
 type VocabularyExtractorWorker struct {
-	inputQueue                  middleware.Middleware
+	inputExchange               middleware.Middleware
 	outputExchangeQ3            middleware.ExchangeMiddleware
 	outputExchangeQ4            middleware.ExchangeMiddleware
 	outputQueueQ5               middleware.Middleware
@@ -46,30 +47,32 @@ type VocabularyExtractorWorker struct {
 func New(config VocabularyExtractorConfig) (*VocabularyExtractorWorker, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
-	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueue, connSettings)
+	inputExchangeRoutingKey := []string{utils.GenerateRoutingKey(config.VocabularyExtractorPrefix, config.Id)}
+	inputExchange, err := middleware.CreateExchangeMiddleware(config.VocabularyExtractorPrefix, inputExchangeRoutingKey, connSettings)
 	if err != nil {
 		return nil, err
 	}
+
 	outputExchangeQ3, err := middleware.CreateExchangeMiddleware(config.SharedWordsAggregatorPrefix, []string{}, connSettings)
 	if err != nil {
-		inputQueue.Close()
+		inputExchange.Close()
 		return nil, err
 	}
 	outputExchangeQ4, err := middleware.CreateExchangeMiddleware(config.PartialTopAggregatorPrefix, []string{}, connSettings)
 	if err != nil {
-		inputQueue.Close()
+		inputExchange.Close()
 		outputExchangeQ3.Close()
 		return nil, err
 	}
 	outputQueueQ5, err := middleware.CreateQueueMiddleware(config.OutputQueueQ5, connSettings)
 	if err != nil {
-		inputQueue.Close()
+		inputExchange.Close()
 		outputExchangeQ3.Close()
 		outputExchangeQ4.Close()
 		return nil, err
 	}
 	return &VocabularyExtractorWorker{
-		inputQueue:                  inputQueue,
+		inputExchange:               inputExchange,
 		outputExchangeQ3:            outputExchangeQ3,
 		outputExchangeQ4:            outputExchangeQ4,
 		outputQueueQ5:               outputQueueQ5,
@@ -89,7 +92,7 @@ func (w *VocabularyExtractorWorker) Run() {
 	var wg sync.WaitGroup
 
 	utils.SpawnWithWG(&wg, func() {
-		w.inputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
+		w.inputExchange.StartConsuming(func(msg middleware.Message, ack, nack func()) {
 			w.handleMessage(msg, ack, nack)
 		})
 	})
@@ -105,7 +108,7 @@ func (w *VocabularyExtractorWorker) handleSignals(done chan struct{}) {
 		select {
 		case <-signals:
 			slog.Info("Graceful shutdown started...")
-			w.inputQueue.StopConsuming()
+			w.inputExchange.StopConsuming()
 		case <-done:
 			return
 		}
@@ -113,8 +116,8 @@ func (w *VocabularyExtractorWorker) handleSignals(done chan struct{}) {
 }
 
 func (w *VocabularyExtractorWorker) shutdown() {
-	if err := w.inputQueue.Close(); err != nil {
-		slog.Error("While closing input queue", "err", err)
+	if err := w.inputExchange.Close(); err != nil {
+		slog.Error("While closing input exchange", "err", err)
 	}
 	if err := w.outputExchangeQ3.Close(); err != nil {
 		slog.Error("While closing Q3 output exchange", "err", err)
@@ -125,6 +128,7 @@ func (w *VocabularyExtractorWorker) shutdown() {
 	if err := w.outputQueueQ5.Close(); err != nil {
 		slog.Error("While closing Q5 output queue", "err", err)
 	}
+
 }
 
 func (w *VocabularyExtractorWorker) handleMessage(msg middleware.Message, ack, nack func()) {
@@ -222,6 +226,7 @@ func (w *VocabularyExtractorWorker) handleEOF(msg middleware.Message) error {
 	if w.recvEofCountMap[msg.ClientID] < w.columnFilterAmount {
 		return nil
 	}
+	delete(w.recvEofCountMap, msg.ClientID)
 
 	eof := messages.EofMsg{}
 	eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
