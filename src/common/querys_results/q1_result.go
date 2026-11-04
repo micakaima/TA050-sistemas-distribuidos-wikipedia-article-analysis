@@ -26,7 +26,7 @@ type English2020Article struct {
 
 func (article *English2020Article) ToRow() string {
 	// Transformamos el campo DateModified a un formato legible.
-	date := time.UnixMilli(article.DateModified).Format(DATE_FORMAT)
+	date := time.UnixMilli(article.DateModified).UTC().Format(DATE_FORMAT)
 	return fmt.Sprintf("%s,%s,%s\n", article.ArticleID, date, article.URL)
 }
 

@@ -190,7 +190,7 @@ func obtainRecords(path string, numRows int) ([]record.Record, error) {
 func obtainEnglish2020Articles(records []record.Record) []qresult.English2020Article {
 	english2020Articles := make([]qresult.English2020Article, 0)
 	for _, r := range records {
-		year := time.UnixMilli(r.DateModified).Year()
+		year := time.UnixMilli(r.DateModified).UTC().Year()
 		if year <= SPLITTER_YEAR && r.InLanguage.Identifier == "en" {
 			english2020Articles = append(english2020Articles, qresult.English2020Article{
 				ArticleID:    r.ArticleID,
@@ -205,7 +205,7 @@ func obtainEnglish2020Articles(records []record.Record) []qresult.English2020Art
 func obtainBio2020Articles(records []record.Record) ([]qresult.ImageArticle, error) {
 	imagesCandidates := messages.NewEmptyImageCandidateBatch(0)
 	for _, r := range records {
-		year := time.UnixMilli(r.DateModified).Year()
+		year := time.UnixMilli(r.DateModified).UTC().Year()
 		sections := strings.ToLower(r.Sections)
 		if year <= SPLITTER_YEAR && (strings.Contains(sections, "biography") || strings.Contains(sections, "biographie")) {
 			imagesCandidates.Add(&messages.ImageCandidate{
