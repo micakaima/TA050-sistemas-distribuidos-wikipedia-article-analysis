@@ -124,7 +124,7 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 			continue
 		}
 
-		imageBytes, err := requestBytes(client, summary.Thumbnail.Source, maxRetries)
+		imageBytes, err := requestBytes(client, summary.Thumbnail.Source, maxRetries, userAgent)
 		if err != nil {
 			result.Error = err.Error()
 			results.Add(result)
