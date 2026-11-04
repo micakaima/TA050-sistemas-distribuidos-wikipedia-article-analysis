@@ -7,4 +7,5 @@ const (
 	UnknownQueryResultCode = "Unknown query result code"
 	UnknownClientID        = "Unknown client ID"
 	ConfigSetupError       = "%s environment variable is required."
+	NotEnoughWorkers       = "Not enough workers"
 )

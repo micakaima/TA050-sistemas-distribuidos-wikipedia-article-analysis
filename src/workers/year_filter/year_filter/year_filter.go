@@ -13,19 +13,22 @@ import (
 )
 
 type Config struct {
-	MomHost        string
-	MomPort        int
-	InputQueue     string
-	OutputExchange string
-	RoutingKeys    []string
-	Year           int
+	MomHost            string
+	MomPort            int
+	InputQueue         string
+	OutputExchange     string
+	RoutingKeys        []string
+	Year               int
+	ColumnFilterAmount int
 }
 
 type YearFilterWorker struct {
-	inputQueue     middleware.Middleware
-	outputExchange middleware.ExchangeMiddleware
-	routingKeys    []string
-	year           int
+	inputQueue         middleware.Middleware
+	outputExchange     middleware.ExchangeMiddleware
+	recvEofCountMap    map[uint64]int
+	routingKeys        []string
+	year               int
+	columnFilterAmount int
 }
 
 func New(config Config) (*YearFilterWorker, error) {
@@ -42,10 +45,12 @@ func New(config Config) (*YearFilterWorker, error) {
 		return nil, err
 	}
 	return &YearFilterWorker{
-		inputQueue:     inputQueue,
-		outputExchange: outputExchange,
-		routingKeys:    config.RoutingKeys,
-		year:           config.Year,
+		inputQueue:         inputQueue,
+		outputExchange:     outputExchange,
+		recvEofCountMap:    map[uint64]int{},
+		routingKeys:        config.RoutingKeys,
+		year:               config.Year,
+		columnFilterAmount: config.ColumnFilterAmount,
 	}, nil
 }
 
@@ -115,6 +120,11 @@ func (w *YearFilterWorker) handleYearCandidates(msg middleware.Message) error {
 }
 
 func (w *YearFilterWorker) handleEOF(msg middleware.Message) error {
+	w.recvEofCountMap[msg.ClientID]++
+	if w.recvEofCountMap[msg.ClientID] < w.columnFilterAmount {
+		return nil
+	}
+
 	eof := messages.EofMsg{}
 	eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
 	if err != nil {

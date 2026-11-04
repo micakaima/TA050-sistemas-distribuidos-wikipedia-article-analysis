@@ -27,6 +27,7 @@ type VocabularyExtractorConfig struct {
 	SharedWordsAggregatorPrefix string
 	PartialTopAggregatorAmount  int
 	PartialTopAggregatorPrefix  string
+	ColumnFilterAmount          int
 }
 
 type VocabularyExtractorWorker struct {
@@ -34,10 +35,12 @@ type VocabularyExtractorWorker struct {
 	outputExchangeQ3            middleware.ExchangeMiddleware
 	outputExchangeQ4            middleware.ExchangeMiddleware
 	outputQueueQ5               middleware.Middleware
+	recvEofCountMap             map[uint64]int
 	sharedWordsAggregatorAmount int
 	sharedWordsAggregatorPrefix string
 	partialTopAggregatorAmount  int
 	partialTopAggregatorPrefix  string
+	columnFilterAmount          int
 }
 
 func New(config VocabularyExtractorConfig) (*VocabularyExtractorWorker, error) {
@@ -70,10 +73,12 @@ func New(config VocabularyExtractorConfig) (*VocabularyExtractorWorker, error) {
 		outputExchangeQ3:            outputExchangeQ3,
 		outputExchangeQ4:            outputExchangeQ4,
 		outputQueueQ5:               outputQueueQ5,
+		recvEofCountMap:             map[uint64]int{},
 		sharedWordsAggregatorAmount: config.SharedWordsAggregatorAmount,
 		sharedWordsAggregatorPrefix: config.SharedWordsAggregatorPrefix,
 		partialTopAggregatorAmount:  config.PartialTopAggregatorAmount,
 		partialTopAggregatorPrefix:  config.PartialTopAggregatorPrefix,
+		columnFilterAmount:          config.ColumnFilterAmount,
 	}, nil
 }
 
@@ -212,6 +217,12 @@ func (w *VocabularyExtractorWorker) sendPartialTopCandidates(clientID uint64, cl
 
 func (w *VocabularyExtractorWorker) handleEOF(msg middleware.Message) error {
 	slog.Info("Received EOF message")
+
+	w.recvEofCountMap[msg.ClientID]++
+	if w.recvEofCountMap[msg.ClientID] < w.columnFilterAmount {
+		return nil
+	}
+
 	eof := messages.EofMsg{}
 	eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
 	if err != nil {

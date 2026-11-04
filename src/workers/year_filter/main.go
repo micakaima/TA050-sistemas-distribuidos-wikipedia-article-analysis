@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -41,13 +42,19 @@ func loadConfig() (year_filter.Config, error) {
 		return year_filter.Config{}, errors.New("YEAR environment variable is required and must be a number")
 	}
 
+	columnFilterAmount, err := strconv.Atoi(os.Getenv("COLUMN_FILTER_AMOUNT"))
+	if err != nil {
+		return year_filter.Config{}, fmt.Errorf("COLUMN_FILTER_AMOUNT environment variable is required and must be a number")
+	}
+
 	return year_filter.Config{
-		MomHost:        momHost,
-		MomPort:        momPort,
-		InputQueue:     inputQueue,
-		OutputExchange: outputExchange,
-		RoutingKeys:    routingKeys,
-		Year:           year,
+		MomHost:            momHost,
+		MomPort:            momPort,
+		InputQueue:         inputQueue,
+		OutputExchange:     outputExchange,
+		RoutingKeys:        routingKeys,
+		Year:               year,
+		ColumnFilterAmount: columnFilterAmount,
 	}, nil
 }
 

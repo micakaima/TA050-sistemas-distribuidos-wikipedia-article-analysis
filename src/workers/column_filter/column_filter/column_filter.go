@@ -16,41 +16,43 @@ import (
 )
 
 type Config struct {
-	MomHost      string
-	MomPort      int
-	InputQueue   string
-	OutputQ1ToQ2 string
-	OutputQ3ToQ5 string
+	Id                 int
+	MomHost            string
+	MomPort            int
+	OutputQ1ToQ2       string
+	OutputQ3ToQ5       string
+	ColumnFilterPrefix string
 }
 
 type ColumnFilterWorker struct {
-	inputQueue   middleware.Middleware
-	outputQ1ToQ2 middleware.Middleware
-	outputQ3ToQ5 middleware.Middleware
+	inputExchange middleware.Middleware
+	outputQ1ToQ2  middleware.Middleware
+	outputQ3ToQ5  middleware.Middleware
 }
 
 func New(config Config) (*ColumnFilterWorker, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
-	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueue, connSettings)
+	inputExchangeRoutingKey := []string{utils.GenerateRoutingKey(config.ColumnFilterPrefix, config.Id)}
+	inputExchange, err := middleware.CreateExchangeMiddleware(config.ColumnFilterPrefix, inputExchangeRoutingKey, connSettings)
 	if err != nil {
 		return nil, err
 	}
 	outputQ1ToQ2, err := middleware.CreateQueueMiddleware(config.OutputQ1ToQ2, connSettings)
 	if err != nil {
-		inputQueue.Close()
+		inputExchange.Close()
 		return nil, err
 	}
 	outputQ3ToQ5, err := middleware.CreateQueueMiddleware(config.OutputQ3ToQ5, connSettings)
 	if err != nil {
-		inputQueue.Close()
+		inputExchange.Close()
 		outputQ1ToQ2.Close()
 		return nil, err
 	}
 	return &ColumnFilterWorker{
-		inputQueue:   inputQueue,
-		outputQ1ToQ2: outputQ1ToQ2,
-		outputQ3ToQ5: outputQ3ToQ5,
+		inputExchange: inputExchange,
+		outputQ1ToQ2:  outputQ1ToQ2,
+		outputQ3ToQ5:  outputQ3ToQ5,
 	}, nil
 }
 
@@ -61,7 +63,7 @@ func (w *ColumnFilterWorker) Run() {
 	var wg sync.WaitGroup
 
 	utils.SpawnWithWG(&wg, func() {
-		w.inputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
+		w.inputExchange.StartConsuming(func(msg middleware.Message, ack, nack func()) {
 			w.handleMessage(msg, ack, nack)
 		})
 	})
@@ -77,7 +79,7 @@ func (w *ColumnFilterWorker) handleSignals(done chan struct{}) {
 		select {
 		case <-signals:
 			slog.Info("Graceful shutdown started...")
-			w.inputQueue.StopConsuming()
+			w.inputExchange.StopConsuming()
 		case <-done:
 			return
 		}
@@ -85,7 +87,7 @@ func (w *ColumnFilterWorker) handleSignals(done chan struct{}) {
 }
 
 func (w *ColumnFilterWorker) shutdown() {
-	if err := w.inputQueue.Close(); err != nil {
+	if err := w.inputExchange.Close(); err != nil {
 		slog.Error("While closing input queue", "err", err)
 	}
 	if err := w.outputQ1ToQ2.Close(); err != nil {

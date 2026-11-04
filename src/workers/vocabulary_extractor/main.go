@@ -51,6 +51,11 @@ func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
 		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "PARTIAL_TOP_AGGREGATOR_PREFIX")
 	}
 
+	columnFilterAmount, err := strconv.Atoi(os.Getenv("COLUMN_FILTER_AMOUNT"))
+	if err != nil {
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "COLUMN_FILTER_AMOUNT")
+	}
+
 	return vextractor.VocabularyExtractorConfig{
 		MomHost:                     momHost,
 		MomPort:                     momPort,
@@ -60,6 +65,7 @@ func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
 		SharedWordsAggregatorPrefix: sharedWordsAggregatorPrefix,
 		PartialTopAggregatorAmount:  partialTopAggregatorAmount,
 		PartialTopAggregatorPrefix:  partialTopAggregatorPrefix,
+		ColumnFilterAmount:          columnFilterAmount,
 	}, nil
 }
 

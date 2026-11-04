@@ -10,6 +10,11 @@ import (
 )
 
 func loadConfig() (column_filter.Config, error) {
+	id, err := strconv.Atoi(os.Getenv("ID"))
+	if err != nil {
+		return column_filter.Config{}, errors.New("ID environment variable is required and must be a number")
+	}
+
 	momPort, err := strconv.Atoi(os.Getenv("MOM_PORT"))
 	if err != nil {
 		return column_filter.Config{}, errors.New("MOM_PORT environment variable is required and must be a number")
@@ -18,11 +23,6 @@ func loadConfig() (column_filter.Config, error) {
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
 		return column_filter.Config{}, errors.New("MOM_HOST environment variable is required")
-	}
-
-	inputQueue := os.Getenv("INPUT_QUEUE")
-	if inputQueue == "" {
-		return column_filter.Config{}, errors.New("INPUT_QUEUE environment variable is required")
 	}
 
 	outQ1ToQ2 := os.Getenv("OUTPUT_QUEUE_Q1_TO_Q2")
@@ -35,12 +35,18 @@ func loadConfig() (column_filter.Config, error) {
 		return column_filter.Config{}, errors.New("OUTPUT_QUEUE_Q3_TO_Q5 environment variable is required")
 	}
 
+	columnFilterPrefix := os.Getenv("COLUMN_FILTER_PREFIX")
+	if columnFilterPrefix == "" {
+		return column_filter.Config{}, errors.New("COLUMN_FILTER_PREFIX environment variable is required")
+	}
+
 	return column_filter.Config{
-		MomHost:      momHost,
-		MomPort:      momPort,
-		InputQueue:   inputQueue,
-		OutputQ1ToQ2: outQ1ToQ2,
-		OutputQ3ToQ5: outQ3ToQ5,
+		Id:                 id,
+		MomHost:            momHost,
+		MomPort:            momPort,
+		OutputQ1ToQ2:       outQ1ToQ2,
+		OutputQ3ToQ5:       outQ3ToQ5,
+		ColumnFilterPrefix: columnFilterPrefix,
 	}, nil
 }
 

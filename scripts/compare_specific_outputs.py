@@ -1,4 +1,5 @@
 import difflib, argparse, pathlib
+from collections import Counter
 
 # Permite comparar 2 archivos individuales.
 #   - Se debe pasar como argumento '-f1' el path del archivo 1.
@@ -25,13 +26,15 @@ def main():
     with open(path2) as file_2:
         file_2_text = file_2.readlines()
 
-    total_different_lines = 0
-    for line in difflib.unified_diff(file_1_text, file_2_text, fromfile=str(path1), tofile=str(path2), lineterm=''):
-        total_different_lines += 1
-        print(line)
+    counter_1 = Counter(file_1_text)
+    counter_2 = Counter(file_2_text)
 
-    if total_different_lines == 0:
-        print("Files are identical!")
+    if counter_1 == counter_2:
+        print("Results are the same!")
+    else:
+        print("Results are NOT the same")
+        for line in difflib.unified_diff(file_1_text, file_2_text, fromfile=str(path1), tofile=str(path2), lineterm=''):
+            print(line)
 
 if __name__ == "__main__":
     main()
