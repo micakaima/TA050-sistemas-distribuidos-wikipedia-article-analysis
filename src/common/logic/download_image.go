@@ -20,7 +20,6 @@ import (
 const (
 	ExternalAPIError    = "External API error: could not retrieve image"
 	InternalErrorPrefix = "Internal error: "
-	NoThumbnailError    = "no thumbnail found"
 )
 
 type WikiSummaryResponse struct {
@@ -54,7 +53,7 @@ func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAge
 		req, err := http.NewRequest(http.MethodGet, targetUrl, nil)
 		if err != nil {
 			slog.Error("Failed to create HTTP request", "err", err)
-			return nil, fmt.Errorf("%sfailed to create HTTP request: %w", InternalErrorPrefix, err)
+			return nil, fmt.Errorf(InternalErrorPrefix)
 		}
 
 		req.Header.Set("User-Agent", userAgent)
@@ -107,14 +106,14 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 		}
 		if r.URL == "" {
 			slog.Error("Missing URL for article", "article_id", r.ArticleID, "name", r.Name)
-			result.Error = InternalErrorPrefix + "missing URL"
+			result.Error = InternalErrorPrefix
 			results.Add(result)
 			continue
 		}
 		id, err := strconv.Atoi(r.ArticleID)
 		if err != nil {
 			slog.Error("Invalid ArticleID format", "article_id", r.ArticleID, "name", r.Name, "err", err)
-			result.Error = InternalErrorPrefix + "invalid ArticleID format"
+			result.Error = InternalErrorPrefix
 			results.Add(result)
 			continue
 		}
@@ -137,7 +136,7 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 		splittedURL := strings.Split(r.URL, "/wiki/")
 		if len(splittedURL) != 2 {
 			slog.Error("Invalid URL format for article", "article_id", r.ArticleID, "name", r.Name, "url", r.URL)
-			result.Error = InternalErrorPrefix + "invalid URL format"
+			result.Error = InternalErrorPrefix
 			results.Add(result)
 			continue
 		}
@@ -161,14 +160,14 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 
 		if err := json.Unmarshal(bodyBytes, &summary); err != nil {
 			slog.Error("Failed to unmarshal JSON response", "article_id", r.ArticleID, "name", r.Name, "err", err)
-			result.Error = InternalErrorPrefix + "JSON unmarshal failed: " + err.Error()
+			result.Error = InternalErrorPrefix
 			results.Add(result)
 			continue
 		}
 
 		if summary.Thumbnail == nil || summary.Thumbnail.Source == "" {
 			slog.Info("No thumbnail found for article", "article_id", r.ArticleID, "name", r.Name)
-			result.Error = NoThumbnailError
+			result.Error = ExternalAPIError
 			results.Add(result)
 			continue
 		}
