@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"fmt"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -20,7 +22,7 @@ func (m *exchangeMiddleware) StartConsuming(callbackFunc func(msg Message, ack f
 		nil,
 	)
 	if err != nil {
-		return ErrMessageMiddlewareMessage
+		return fmt.Errorf("%w: %w", ErrMessageMiddlewareMessage, err)
 	}
 
 	for _, key := range m.keys {
@@ -32,7 +34,7 @@ func (m *exchangeMiddleware) StartConsuming(callbackFunc func(msg Message, ack f
 			nil,
 		)
 		if err != nil {
-			return ErrMessageMiddlewareMessage
+			return fmt.Errorf("%w: %w", ErrMessageMiddlewareMessage, err)
 		}
 	}
 
@@ -58,7 +60,7 @@ func (m *exchangeMiddleware) Send(msg Message) error {
 				Body:        []byte(msg.Body),
 			})
 		if err != nil {
-			return ErrMessageMiddlewareMessage
+			return fmt.Errorf("%w: %w", ErrMessageMiddlewareMessage, err)
 		}
 	}
 	return nil
@@ -82,7 +84,7 @@ func (m *exchangeMiddleware) SendToKey(msg Message, routingKey string) error {
 			Body:        []byte(msg.Body),
 		})
 	if err != nil {
-		return ErrMessageMiddlewareMessage
+		return fmt.Errorf("%w: %w", ErrMessageMiddlewareMessage, err)
 	}
 	return nil
 }

@@ -22,7 +22,7 @@ type commonMiddleware struct {
 
 func (m *commonMiddleware) consume(queueName string, callbackFunc func(msg Message, ack func(), nack func())) error {
 	if err := m.channel.Qos(prefetchCount, prefetchSize, false); err != nil {
-		return ErrMessageMiddlewareMessage
+		return fmt.Errorf("%w: %w", ErrMessageMiddlewareMessage, err)
 	}
 
 	m.consumerTag = fmt.Sprintf("consumer_%s_%d", queueName, time.Now().UnixNano())
@@ -37,7 +37,7 @@ func (m *commonMiddleware) consume(queueName string, callbackFunc func(msg Messa
 		nil,
 	)
 	if err != nil {
-		return ErrMessageMiddlewareMessage
+		return fmt.Errorf("%w: %w", ErrMessageMiddlewareMessage, err)
 	}
 
 	for delivery := range messages {

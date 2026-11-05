@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"fmt"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -31,7 +33,7 @@ func (m *queueMiddleware) Send(msg Message) error {
 			Body:        []byte(msg.Body),
 		})
 	if err != nil {
-		return ErrMessageMiddlewareMessage
+		return fmt.Errorf("%w: %w", ErrMessageMiddlewareMessage, err)
 	}
 	return nil
 }

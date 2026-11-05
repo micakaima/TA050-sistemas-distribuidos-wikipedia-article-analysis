@@ -80,10 +80,6 @@ func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAge
 			return nil, errors.New(ExternalAPIError)
 		}
 
-		if areTooManyRequests(resp, articleID) {
-			continue
-		}
-
 		slog.Warn("HTTP request failed", "status", resp.StatusCode, "attempt", attempt+1, "err", err)
 
 		if attempt < maxRetries-1 {

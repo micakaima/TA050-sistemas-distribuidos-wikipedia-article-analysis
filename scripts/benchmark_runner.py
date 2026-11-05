@@ -228,6 +228,10 @@ def stage_run_distributed(args):
     backend_services = [s for s in all_services if not s.startswith("client_")]
     active_client_services = [s for s in client_names if s in all_services]
 
+    # Asegurar un estado limpio de contenedores y volúmenes previos
+    pre_clean_cmd = ["docker", "compose", "-f", args.compose_file, "down", "-v", "--remove-orphans"]
+    run_command(pre_clean_cmd, desc="Limpiando contenedores y volúmenes anónimos previos")
+
     # Iniciar primero el clúster de backend
     up_backend_cmd = ["docker", "compose", "-f", args.compose_file, "up", "-d", "--build", "--remove-orphans"] + backend_services
     run_command(up_backend_cmd, desc=f"Iniciando infraestructura de backend ({len(backend_services)} servicios)")
@@ -247,10 +251,11 @@ def stage_run_distributed(args):
     log_proc = None
     if not args.no_logs:
         # Transmitir logs relevantes en tiempo real para visualizar avance de queries
+        downloaders = sorted([s for s in all_services if s.startswith("image_downloader_")])
         log_services = list(active_client_services) + [
             "gateway", "q1_aggregator", "q2_aggregator", "q3_aggregator",
-            "q4_aggregator", "q5_aggregator", "image_downloader_0", "image_downloader_1"
-        ]
+            "q4_aggregator", "q5_aggregator"
+        ] + downloaders
         log_cmd = ["docker", "compose", "-f", args.compose_file, "logs", "-f", "--tail=0"] + [s for s in log_services if s in all_services]
         try:
             log_proc = subprocess.Popen(log_cmd, stdout=sys.stdout, stderr=sys.stderr)
@@ -365,7 +370,7 @@ def stage_teardown(args):
     if args.skip_docker or args.skip_teardown:
         return
     log_section("Paso 5: Apagado y Limpieza de Contenedores")
-    down_cmd = ["docker", "compose", "-f", args.compose_file, "down"]
+    down_cmd = ["docker", "compose", "-f", args.compose_file, "down", "-v", "--remove-orphans"]
     run_command(down_cmd, desc="Deteniendo clúster distribuido")
 
 def generate_report(args, gen_time, total_bytes, rows_per_file, total_articles, oracle_time, oracle_status, dist_time, exit_codes, verification_results, all_matched):

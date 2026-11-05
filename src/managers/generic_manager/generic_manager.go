@@ -1,10 +1,6 @@
 package genericmanager
 
 import (
-	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
-	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
-	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
-	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
@@ -12,6 +8,11 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+
+	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/middleware"
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
+	errors "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
 type ManagerConfig struct {

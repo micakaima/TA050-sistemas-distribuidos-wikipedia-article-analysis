@@ -82,6 +82,7 @@ services:
     container_name: rabbitmq
     environment:
     - RABBITMQ_LOG_LEVELS=error
+    - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit max_message_size 536870912
     healthcheck:
       interval: 5s
       retries: 10

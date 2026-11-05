@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
 	messages "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/inner/messages"
@@ -111,6 +112,10 @@ func (w *Aggregator[T]) handleMessage(msg middleware.Message, ack, nack func()) 
 		if shouldFinish {
 			if err := w.finish(msg.ClientID); err != nil {
 				slog.Error("While finishing", "err", err)
+				utils.WithLock(&w.mu, func() {
+					w.eofsReceived[msg.ClientID]--
+				})
+				time.Sleep(1 * time.Second)
 				nack()
 				return
 			}
