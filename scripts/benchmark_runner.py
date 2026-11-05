@@ -19,7 +19,7 @@ DEFAULT_ROWS = 50
 DEFAULT_CLIENTS = 3
 DEFAULT_CACHE_DIR = "./data/cache"
 DEFAULT_OUTPUT_REPORT = "./data/benchmark_report.md"
-DEFAULT_TIMEOUT = 600
+DEFAULT_TIMEOUT = 1200
 
 def parse_args():
     parser = argparse.ArgumentParser(

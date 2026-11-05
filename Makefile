@@ -48,20 +48,22 @@ VOLUME ?=
 ORACLE ?= auto
 INPUT_MODE ?= volume
 COMPOSE_FILE ?= docker-compose.yaml
+TIMEOUT ?= 1200
+EXTRA_ARGS ?=
 
 benchmark:
 	@if [ -n "$(VOLUME)" ]; then \
-		python3 scripts/benchmark_runner.py --volume $(VOLUME) --clients $(CLIENTS) --oracle $(ORACLE) --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE); \
+		python3 scripts/benchmark_runner.py --volume $(VOLUME) --clients $(CLIENTS) --oracle $(ORACLE) --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE) --timeout $(TIMEOUT) $(EXTRA_ARGS); \
 	else \
-		python3 scripts/benchmark_runner.py --rows $(ROWS) --clients $(CLIENTS) --oracle $(ORACLE) --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE); \
+		python3 scripts/benchmark_runner.py --rows $(ROWS) --clients $(CLIENTS) --oracle $(ORACLE) --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE) --timeout $(TIMEOUT) $(EXTRA_ARGS); \
 	fi
 .PHONY: benchmark
 
 prepare-expected:
 	@if [ -n "$(VOLUME)" ]; then \
-		python3 scripts/benchmark_runner.py --volume $(VOLUME) --clients $(CLIENTS) --oracle generate --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE) --skip-docker; \
+		python3 scripts/benchmark_runner.py --volume $(VOLUME) --clients $(CLIENTS) --oracle generate --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE) $(EXTRA_ARGS) --skip-docker; \
 	else \
-		python3 scripts/benchmark_runner.py --rows $(ROWS) --clients $(CLIENTS) --oracle generate --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE) --skip-docker; \
+		python3 scripts/benchmark_runner.py --rows $(ROWS) --clients $(CLIENTS) --oracle generate --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE) $(EXTRA_ARGS) --skip-docker; \
 	fi
 .PHONY: prepare-expected
 
