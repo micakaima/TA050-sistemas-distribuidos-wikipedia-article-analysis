@@ -71,3 +71,15 @@ Si después de todos los reintentos y el fallback la imagen no se puede obtener,
 ![alt text](diagrama_secuencia_q3.jpg)
 ![alt text](diagrama_secuencia_q4.jpg)
 ![alt text](diagrama_secuencia_q5.jpg)
+
+## Escalabilidad 
+Approach escogido para escalar los nodos: Sharding por article_id
+
+Esto brinda ciertas ventajas tales como:
+- Cero race conditions: Al viajar por los mismos canales FIFO que los datos, ningún EOF de un cliente puede adelantarse a sus artículos.
+- Simplicidad arquitectónica: se evita canales de control fuera de banda, locks distribuidos o re-encolados infinitos.
+
+Asimismo, esto trae aparejado algunos tradeoffs importantes para destacar:
+- Nodos stateful (estado de control): Cada nodo debe mantener en memoria el registro de EOFs recibidos por cliente M esperados.
+- Amplificación de mensajes: El tráfico de control escala a O(M · N) mensajes por cada cliente que cierra su stream.
+- Ruteo estático (sin work-stealing): Si un nodo recibe artículos más pesados o un cliente masivo (Head-of-Line blocking), los demás nodos libres no pueden robarle carga de su cola.
