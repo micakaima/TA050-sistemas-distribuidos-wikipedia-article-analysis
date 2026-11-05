@@ -41,6 +41,11 @@ func loadConfig() (abovefilter.AboveAverageFilterConfig, error) {
 		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE")
 	}
 
+	batchSize, err := strconv.Atoi(os.Getenv("BATCH_SIZE"))
+	if err != nil {
+		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "BATCH_SIZE")
+	}
+
 	return abovefilter.AboveAverageFilterConfig{
 		Id:                              id,
 		MomHost:                         momHost,
@@ -48,6 +53,7 @@ func loadConfig() (abovefilter.AboveAverageFilterConfig, error) {
 		OutputQueue:                     outputQueue,
 		AboveAverageFilterPrefixData:    aboveAverageFilterPrefixData,
 		AboveAverageFilterPrefixAverage: aboveAverageFilterPrefixAverage,
+		BatchSize:                       batchSize,
 	}, nil
 }
 

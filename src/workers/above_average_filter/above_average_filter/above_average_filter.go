@@ -23,12 +23,14 @@ type AboveAverageFilterConfig struct {
 	OutputQueue                     string
 	AboveAverageFilterPrefixData    string
 	AboveAverageFilterPrefixAverage string
+	BatchSize                       int
 }
 
 type AboveAverageFilterWorker struct {
 	dataInputExchange    middleware.Middleware
 	averageInputExchange middleware.Middleware
 	outputQueue          middleware.Middleware
+	batchSize            int
 	clientStates         map[uint64]*ClientState
 	lock                 sync.Mutex
 }
@@ -66,6 +68,7 @@ func New(config AboveAverageFilterConfig) (*AboveAverageFilterWorker, error) {
 		dataInputExchange:    dataInputExchange,
 		averageInputExchange: averageInputExchange,
 		outputQueue:          outputQueue,
+		batchSize:            config.BatchSize,
 		clientStates:         map[uint64]*ClientState{},
 		lock:                 sync.Mutex{},
 	}, nil
@@ -240,39 +243,51 @@ func (w *AboveAverageFilterWorker) saveWordCount(clientID uint64, wordCount mess
 	})
 }
 
-func (w *AboveAverageFilterWorker) filterAboveAverage(clientID uint64) (generic.Batch[*qresult.AboveAverageArticle], error) {
-	aboveAverage := qresult.NewEmptyAboveAverageArticleBatch(0)
+func (w *AboveAverageFilterWorker) sendQuery5Result(clientID uint64) error {
+	var clientState *ClientState
 	err := utils.WithLockAndReturn(&w.lock, func() error {
-		clientState, exists := w.clientStates[clientID]
+		cs, exists := w.clientStates[clientID]
 		if !exists {
 			return fmt.Errorf(errors.UnknownClientID)
 		}
-		for _, wc := range clientState.articlesWordCounts {
-			if float64(wc.WordCount) > clientState.average {
-				aboveAverage.Add(&qresult.AboveAverageArticle{
-					ArticleID: wc.ArticleID,
-					URL:       wc.URL,
-					WordCount: wc.WordCount,
-				})
-			}
-		}
+		clientState = cs
 		return nil
 	})
-	return aboveAverage, err
+	if err != nil {
+		return err
+	}
+
+	currentBatch := qresult.NewEmptyAboveAverageArticleBatch(w.batchSize)
+	for _, wc := range clientState.articlesWordCounts {
+		if float64(wc.WordCount) > clientState.average {
+			currentBatch.Add(&qresult.AboveAverageArticle{
+				ArticleID: wc.ArticleID,
+				URL:       wc.URL,
+				WordCount: wc.WordCount,
+			})
+
+			if currentBatch.Len() >= w.batchSize {
+				if err := w.sendBatch(clientID, currentBatch); err != nil {
+					return err
+				}
+				currentBatch = qresult.NewEmptyAboveAverageArticleBatch(w.batchSize)
+			}
+		}
+	}
+	if currentBatch.Len() > 0 {
+		if err := w.sendBatch(clientID, currentBatch); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (w *AboveAverageFilterWorker) sendQuery5Result(clientID uint64) error {
-	aboveAverageArticles, err := w.filterAboveAverage(clientID)
+func (w *AboveAverageFilterWorker) sendBatch(clientID uint64, batch generic.Batch[*qresult.AboveAverageArticle]) error {
+	resultMessage, err := middleware.NewMessage(clientID, messages.Q5ResultCode, &batch)
 	if err != nil {
-		slog.Debug("While filtering articles with above average word count", "err", err)
 		return err
 	}
-	resultMessage, err := middleware.NewMessage(clientID, messages.Q5ResultCode, &aboveAverageArticles)
-	if err != nil || w.outputQueue.Send(*resultMessage) != nil {
-		return err
-	}
-
-	return nil
+	return w.outputQueue.Send(*resultMessage)
 }
 
 func (w *AboveAverageFilterWorker) sendEOF(clientID uint64) error {

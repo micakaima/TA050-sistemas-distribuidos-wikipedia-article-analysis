@@ -31,9 +31,9 @@ func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
 		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "VOCABULARY_EXTRACTOR_PREFIX")
 	}
 
-	outputQueueQ5 := os.Getenv("OUTPUT_QUEUE_Q5")
+	outputQueueQ5 := os.Getenv("OUTPUT_QUEUE")
 	if outputQueueQ5 == "" {
-		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE_Q5")
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE")
 	}
 
 	sharedWordsAggregatorAmount, err := strconv.Atoi(os.Getenv("SHARED_WORDS_AGGREGATOR_AMOUNT"))

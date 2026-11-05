@@ -15,6 +15,7 @@ CANT_PARTIAL_TOP_AGGREGATORS = 2
 CONNECTION_ATTEMPS=3
 CONNECTION_ATTEMPTS_DELAY_MS=300
 CLIENT_BATCH_SIZE=5
+ABOVE_AVERAGE_FILTER_BATCH_SIZE=1000
 MAX_DOWNLOAD_RETRIES=3
 CLIENT_TIMEOUT=10
 USER_AGENT="Wikipedia-Article-Analysis/1.0"
@@ -217,6 +218,7 @@ def generate_above_average_filter_containers(docker_compose):
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
                 "OUTPUT_QUEUE=q5_results_queue",
+                f"BATCH_SIZE={ABOVE_AVERAGE_FILTER_BATCH_SIZE}"
             ]
         }
 

@@ -5,7 +5,8 @@ services:
       dockerfile: src/client/Dockerfile
     container_name: client_0
     depends_on:
-      - gateway
+      - column_filter_0
+      - column_filter_1
     environment:
       - INPUT_DIR=/input/input_0
       - OUTPUT_DIR=/output/output_0
@@ -24,7 +25,8 @@ services:
       dockerfile: src/client/Dockerfile
     container_name: client_1
     depends_on:
-      - gateway
+      - column_filter_0
+      - column_filter_1
     environment:
       - INPUT_DIR=/input/input_1
       - OUTPUT_DIR=/output/output_1
@@ -43,7 +45,8 @@ services:
       dockerfile: src/client/Dockerfile
     container_name: client_2
     depends_on:
-      - gateway
+      - column_filter_0
+      - column_filter_1
     environment:
       - INPUT_DIR=/input/input_2
       - OUTPUT_DIR=/output/output_2
@@ -147,7 +150,7 @@ services:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
-      - OUTPUT_QUEUE_Q5=q5_queue
+      - OUTPUT_QUEUE=year_splitter_queue
       - SHARED_WORDS_AGGREGATOR_AMOUNT=2
       - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
       - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
@@ -170,7 +173,7 @@ services:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
-      - OUTPUT_QUEUE_Q5=q5_queue
+      - OUTPUT_QUEUE=year_splitter_queue
       - SHARED_WORDS_AGGREGATOR_AMOUNT=2
       - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
       - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
@@ -224,7 +227,7 @@ services:
       - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
-      - INPUT_QUEUE=q5_queue
+      - INPUT_QUEUE=year_splitter_queue
       - VOCABULARY_EXTRACTOR_AMOUNT=2
   
   old_articles_averager_0:
@@ -273,6 +276,7 @@ services:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - OUTPUT_QUEUE=q5_results_queue
+      - BATCH_SIZE=1000
 
   above_average_filter_1:
     build:
@@ -288,6 +292,7 @@ services:
       - MOM_HOST=rabbitmq
       - MOM_PORT=5672
       - OUTPUT_QUEUE=q5_results_queue
+      - BATCH_SIZE=1000
 
   year_filter_0:
     build:
