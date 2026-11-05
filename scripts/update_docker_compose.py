@@ -20,7 +20,7 @@ MAX_DOWNLOAD_RETRIES=3
 CLIENT_TIMEOUT=10
 USER_AGENT="Wikipedia-Article-Analysis/1.0"
 
-OUTPUT_FILENAME="docker-compose2.yaml"
+OUTPUT_FILENAME="docker-compose.yaml"
 
 def generate_client_containers(docker_compose):
     for i in range(CANT_CLIENTS):
@@ -283,6 +283,7 @@ def generate_partial_top_aggregator_containers(docker_compose):
                 "OUTPUT_QUEUE=q4_results_queue",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
+                f"VOCABULARY_EXTRACTOR_AMOUNT={CANT_VOCABULARY_EXTRACTORS}"
             ]
         }
 
