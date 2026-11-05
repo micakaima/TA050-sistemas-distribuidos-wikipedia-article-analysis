@@ -1,9 +1,19 @@
 import argparse
 import re
 import sys
-from pathlib import Path 
+from pathlib import Path
 
 RECORD_START = re.compile(rb"^\d+,[^,\r\n]*,\s*https?://")
+
+ERROR_PREFIXES = [
+    b"External API error:",
+    b"Internal error:",
+    b"no thumbnail found",
+]
+
+def is_error(payload: bytes) -> bool:
+    payload = payload.lstrip()
+    return any(payload.startswith(p) for p in ERROR_PREFIXES)
 
 
 def split_records(data):
@@ -24,21 +34,22 @@ def parse(rec):
     parts = rec.split(b",", 3)
     if len(parts) < 4:
         return None
-    id, name, url, rest = parts
-    image, _, error = rest.rpartition(b",")
+    id, name, url, payload = parts
+    has_error = is_error(payload)
+    has_image = not has_error
     return (
         id.strip(),
         name.strip(),
         url.strip(),
-        len(image) > 0,
-        len(error.strip()) > 0,
+        has_image,
+        has_error,
     )
 
 
 def load(path):
     parsed = [parse(r) for r in split_records(path.read_bytes())]
-    parsed = [p for p in parsed if p is not None] 
-    parsed.sort(key=lambda t: t[0])
+    parsed = [p for p in parsed if p is not None]
+    parsed.sort(key=lambda t: t[0])  # orden por ArticleID
     return parsed
 
 
