@@ -12,8 +12,8 @@ CANT_ABOVE_AVERAGE_FILTERS = 2
 CANT_SHARED_WORDS_AGGREGATORS = 2
 CANT_PARTIAL_TOP_AGGREGATORS = 2
 
-CONNECTION_ATTEMPS=3
-CONNECTION_ATTEMPTS_DELAY_MS=300
+CONNECTION_ATTEMPS=10
+CONNECTION_ATTEMPTS_DELAY_MS=1000
 CLIENT_BATCH_SIZE=5
 ABOVE_AVERAGE_FILTER_BATCH_SIZE=1000
 MAX_DOWNLOAD_RETRIES=3
@@ -25,7 +25,7 @@ OUTPUT_FILENAME="docker-compose.yaml"
 def generate_client_containers(docker_compose):
     for i in range(CANT_CLIENTS):
         container_name = f"client_{i}"
-        depends_list = [f"column_filter_{j}" for j in range(CANT_COLUMN_FILTERS)]
+        depends_list = ["gateway"] + [f"column_filter_{j}" for j in range(CANT_COLUMN_FILTERS)]
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",
