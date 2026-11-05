@@ -81,69 +81,104 @@ def create_client_dir(client_id):
     os.makedirs(client_dir_name, exist_ok=True)
     return client_dir_name
 
-def get_dataset_file(file_base_path, idx, cache_dir, use_cache=True):
+def get_dataset_shard(file_base_path, idx, cache_dir, use_cache=True):
     file_name = f"{file_base_path}{idx:05}.parquet"
     base_name = os.path.basename(file_name)
     cached_file = os.path.join(cache_dir, base_name)
 
     # 1. Preferencia: Archivo exacto en cache
     if use_cache and os.path.exists(cached_file) and os.path.getsize(cached_file) > 0:
-        print(f"[CACHE] Found exact cached file: {cached_file}")
+        print(f"[CACHE] Found exact cached shard: {cached_file}")
         return cached_file
 
-    # 1.b. Fallback dentro de cache: Si no existe el idx específico pero sí el índice 00000
-    base_prefix = os.path.basename(file_base_path)
-    fallback_cached = os.path.join(cache_dir, f"{base_prefix}00000.parquet")
-    if use_cache and os.path.exists(fallback_cached) and os.path.getsize(fallback_cached) > 0:
-        print(f"[CACHE] Using index 0 cached file as fallback for index {idx}: {fallback_cached}")
-        return fallback_cached
-
-    # 2. Fallback externo: Descargar con kagglehub
-    print(f"[KAGGLE] Not found in cache. Downloading {file_name} from Kaggle...")
+    # 2. Descarga desde Kaggle si no está en cache
+    print(f"[KAGGLE] Downloading shard {base_name} ({file_name}) from Kaggle...")
     try:
         dataset_path = kagglehub.dataset_download(KAGGLE_DATASET_BASE_PATH, path=file_name)
         if use_cache:
             os.makedirs(cache_dir, exist_ok=True)
             shutil.copy2(dataset_path, cached_file)
-            print(f"[CACHE] Saved downloaded file to cache: {cached_file}")
+            print(f"[CACHE] Saved downloaded shard to cache: {cached_file}")
+            return cached_file
         return dataset_path
     except Exception as e:
-        print(f"[ERROR] While downloading {file_name}: {e}")
-        # Si falló la descarga pero tenemos algún archivo de caché disponible para ese prefijo
-        if use_cache and os.path.exists(fallback_cached):
-            print(f"[CACHE] Network failed, falling back to cached file: {fallback_cached}")
-            return fallback_cached
-        raise
+        print(f"[WARN] Failed to download {file_name} from Kaggle: {e}")
+        if os.path.exists(cached_file) and os.path.getsize(cached_file) > 0:
+            return cached_file
+        return None
 
-def download_and_distribute(file_base_path, client_dirs, lang, max_rows, cache_dir, use_cache):
-    idx = 0
-    for _, target_dir in enumerate(client_dirs):
+def shard_row_generator(file_base_path, cache_dir, use_cache):
+    shard_idx = 0
+    while True:
+        shard_path = get_dataset_shard(file_base_path, shard_idx, cache_dir, use_cache)
+        if shard_path is None:
+            break
         try:
-            source_file = get_dataset_file(file_base_path, idx, cache_dir, use_cache)
-            output_filename = os.path.join(target_dir, f"{lang}-truncated.parquet")
-            written = truncate_parquet_file(source_file, output_filename, max_rows)
-            file_size_mb = os.path.getsize(output_filename) / (1024 * 1024)
-            print(f"[INPUT] Created {output_filename}: {written:,} complete rows ({file_size_mb:.2f} MB)")
+            pf = pq.ParquetFile(shard_path)
+            schema = pf.schema.to_arrow_schema()
+            table = pf.read()
+            yield shard_idx, table, schema
         except Exception as e:
-            print(f"[ERROR] While processing {file_base_path} for {target_dir}: {e}")
-        idx += 1
+            print(f"[ERROR] While reading shard {shard_path}: {e}")
+            break
+        shard_idx += 1
 
-def truncate_parquet_file(file, output_path, max_rows):
-    parquet_file = pq.ParquetFile(file)
-    schema = parquet_file.schema.to_arrow_schema()
+def download_and_distribute(file_base_path, client_targets, lang, max_rows, cache_dir, use_cache):
+    if not client_targets:
+        return
 
-    rows_written = 0
-    with pq.ParquetWriter(output_path, schema) as writer:
-        for i in range(parquet_file.num_row_groups):
-            if rows_written >= max_rows:
-                break
-            table = parquet_file.read_row_group(i)
-            remaining = max_rows - rows_written
-            if table.num_rows > remaining:
-                table = table.slice(0, remaining)
-            writer.write_table(table)
-            rows_written += table.num_rows
-    return rows_written
+    # Si se procesa un cliente individual (ej. client 1), saltear las filas correspondientes a clientes anteriores
+    first_client_id = client_targets[0][0]
+    skip_rows = first_client_id * max_rows
+
+    current_target_idx = 0
+    writer = None
+    output_filename = None
+    client_rows_written = 0
+
+    for shard_idx, table, schema in shard_row_generator(file_base_path, cache_dir, use_cache):
+        num_rows = table.num_rows
+        offset = 0
+
+        if skip_rows > 0:
+            if skip_rows >= num_rows:
+                skip_rows -= num_rows
+                continue
+            else:
+                offset = skip_rows
+                skip_rows = 0
+
+        while offset < num_rows and current_target_idx < len(client_targets):
+            if writer is None:
+                client_id, target_dir = client_targets[current_target_idx]
+                output_filename = os.path.join(target_dir, f"{lang}-truncated.parquet")
+                writer = pq.ParquetWriter(output_filename, schema)
+                client_rows_written = 0
+
+            rows_needed = max_rows - client_rows_written
+            rows_available = num_rows - offset
+            take = min(rows_needed, rows_available)
+
+            slice_table = table.slice(offset, take)
+            writer.write_table(slice_table)
+
+            client_rows_written += take
+            offset += take
+
+            if client_rows_written >= max_rows:
+                writer.close()
+                writer = None
+                size_mb = os.path.getsize(output_filename) / (1024 * 1024)
+                print(f"[INPUT] Created {output_filename}: {client_rows_written:,} complete rows ({size_mb:.2f} MB)")
+                current_target_idx += 1
+
+        if current_target_idx >= len(client_targets):
+            break
+
+    if writer is not None:
+        writer.close()
+        size_mb = os.path.getsize(output_filename) / (1024 * 1024)
+        print(f"[INPUT] Created {output_filename} (parcial): {client_rows_written:,} complete rows ({size_mb:.2f} MB)")
 
 def main():
     args = parse_arguments()
@@ -176,19 +211,19 @@ def main():
 
     clean_old_inputs()
 
-    client_dirs = []
+    client_targets = []
     if args.client is not None:
-        client_dirs.append(create_client_dir(args.client))
+        client_targets.append((args.client, create_client_dir(args.client)))
     else:
         for c in range(args.clients):
-            client_dirs.append(create_client_dir(c))
+            client_targets.append((c, create_client_dir(c)))
 
-    download_and_distribute(KAGGLE_EN_FILE_BASE_PATH, client_dirs, "en", rows_to_generate, args.cache_dir, use_cache)
-    download_and_distribute(KAGGLE_FR_FILE_BASE_PATH, client_dirs, "fr", rows_to_generate, args.cache_dir, use_cache)
+    download_and_distribute(KAGGLE_EN_FILE_BASE_PATH, client_targets, "en", rows_to_generate, args.cache_dir, use_cache)
+    download_and_distribute(KAGGLE_FR_FILE_BASE_PATH, client_targets, "fr", rows_to_generate, args.cache_dir, use_cache)
 
     total_bytes = 0
     total_files = 0
-    for c_dir in client_dirs:
+    for _, c_dir in client_targets:
         for fname in os.listdir(c_dir):
             fpath = os.path.join(c_dir, fname)
             if os.path.isfile(fpath):
