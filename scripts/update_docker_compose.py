@@ -19,7 +19,7 @@ MAX_DOWNLOAD_RETRIES=3
 CLIENT_TIMEOUT=10
 USER_AGENT="Wikipedia-Article-Analysis/1.0"
 
-OUTPUT_FILENAME="docker-compose2.yml"
+OUTPUT_FILENAME="docker-compose2.yaml"
 
 def generate_client_containers(docker_compose):
     for i in range(CANT_CLIENTS):
@@ -144,7 +144,7 @@ def generate_bio_filter_containers(docker_compose):
         }
 
 def generate_image_downloader_containers(docker_compose):
-    for i in range(CANT_BIO_FILTERS):
+    for i in range(CANT_IMAGE_DOWNLOADERS):
         container_name = f"image_downloader_{i}"
         docker_compose["services"][container_name] = {
             "build": {
@@ -164,7 +164,7 @@ def generate_image_downloader_containers(docker_compose):
                 f"BIO_FILTER_AMOUNT={CANT_BIO_FILTERS}",
                 f"MAX_DOWNLOAD_RETRIES={MAX_DOWNLOAD_RETRIES}",
                 f"CLIENT_TIMEOUT={CLIENT_TIMEOUT}",
-                f"USER_AGENT={USER_AGENT}",
+                f"USER_AGENT={USER_AGENT}_{i}",
             ]
         }
 
@@ -325,7 +325,7 @@ def generate_year_splitter_container(docker_compose):
     docker_compose["services"][container_name] = {
         "build": {
             "context": ".",
-            "dockefile": "src/workers/year_splitter/Dockerfile",
+            "dockerfile": "src/workers/year_splitter/Dockerfile",
         },
         "container_name": container_name,
         "depends_on": depends_list,
