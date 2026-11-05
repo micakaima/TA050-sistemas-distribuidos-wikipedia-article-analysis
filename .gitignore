@@ -1,0 +1,20 @@
+# Output and runtime storage
+data/output/output_0/
+data/output/output_1/
+data/output/output_2/
+data/storage/*
+!data/storage/.gitkeep
+
+# Multi-client test inputs and expected results
+data/input/input_1/
+data/input/input_2/
+data/expected_results/results_0/
+data/expected_results/results_1/
+data/expected_results/results_2/
+
+# Cache and benchmark reports
+data/cache/
+data/benchmark_report.md
+__pycache__/
+*.pyc
+
