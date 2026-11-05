@@ -1,5 +1,4 @@
-import argparse
-import yaml  # Si no tienes pyyaml, puedes usar formato de texto plano con f-strings (ver nota abajo)
+import yaml
 
 CANT_CLIENTS = 3
 CANT_COLUMN_FILTERS = 2
