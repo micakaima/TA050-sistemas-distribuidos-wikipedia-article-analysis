@@ -41,7 +41,7 @@
 * **Infraestructura desplegada:** El clúster estándar se compone de **28 contenedores de servicio** (20 réplicas de workers escalados + 6 workers monoinstancia + 1 Gateway TCP↔AMQP + 1 broker RabbitMQ), además de los contenedores de clientes concurrentes.
 
 ## Diagrama de Paquetes
-![alt text](image.png)
+![alt text](diagrama_paquetes.jpg)
 #### Modificaciones / Nuevas decisiones de diseño
 ##### Worker: Result Aggregator 
 En lugar de crear un Aggregator distinto para cada query, se diseñó un Aggregator genérico y se delegó la lógica específica de serialización y construcción del resultado final a una interfaz que implementan los resultados de cada query.
