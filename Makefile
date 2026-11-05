@@ -45,13 +45,25 @@ fmt:
 ROWS ?= 50
 CLIENTS ?= 3
 VOLUME ?=
+ORACLE ?= auto
+INPUT_MODE ?= volume
+COMPOSE_FILE ?= docker-compose.yaml
 
 benchmark:
 	@if [ -n "$(VOLUME)" ]; then \
-		python3 scripts/benchmark_runner.py --volume $(VOLUME) --clients $(CLIENTS); \
+		python3 scripts/benchmark_runner.py --volume $(VOLUME) --clients $(CLIENTS) --oracle $(ORACLE) --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE); \
 	else \
-		python3 scripts/benchmark_runner.py --rows $(ROWS) --clients $(CLIENTS); \
+		python3 scripts/benchmark_runner.py --rows $(ROWS) --clients $(CLIENTS) --oracle $(ORACLE) --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE); \
 	fi
 .PHONY: benchmark
+
+prepare-expected:
+	@if [ -n "$(VOLUME)" ]; then \
+		python3 scripts/benchmark_runner.py --volume $(VOLUME) --clients $(CLIENTS) --oracle generate --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE) --skip-docker; \
+	else \
+		python3 scripts/benchmark_runner.py --rows $(ROWS) --clients $(CLIENTS) --oracle generate --input-mode $(INPUT_MODE) --compose-file $(COMPOSE_FILE) --skip-docker; \
+	fi
+.PHONY: prepare-expected
+
 
 

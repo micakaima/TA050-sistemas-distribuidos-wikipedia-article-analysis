@@ -9,6 +9,8 @@ data/storage/*
 data/input/input_1/
 data/input/input_2/
 data/expected_results/results_0/
+data/expected_results/results_1/
+data/expected_results/results_2/
 
 # Cache and benchmark reports
 data/cache/
