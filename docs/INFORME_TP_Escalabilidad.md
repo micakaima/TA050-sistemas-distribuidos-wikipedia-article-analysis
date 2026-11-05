@@ -58,8 +58,16 @@ La obtención de las imágenes para la Query 2 es una de las tareas más crític
 
 Para cada artículo, el sistema primero intenta descargar la imagen utilizando la URL directa (ImageURL) provista en el dataset original. Si esta falla, como segunda opción, construye una petición a la API REST de Wikipedia (/page/summary/) para obtener la miniatura oficial del artículo. Para esto último, detecta el idioma del artículo (inglés o francés) a partir de su URL.
 
-Manejo de Reintentos y Rate Limiting: Las APIs de Wikipedia tienen límites de peticiones. El sistema implementa un mecanismo de reintentos con Exponential Backoff (esperas que aumentan exponencialmente: 1s, 2s, 4s...). Además, si la API devuelve un error 429 Too Many Requests, el sistema lee el encabezado Retry-After y espera el tiempo exacto solicitado por el servidor antes de volver a intentar.
+Manejo de Reintentos y Rate Limiting: Las APIs de Wikipedia tienen límites de peticiones. El sistema implementa un mecanismo de reintentos con Exponential Backoff (esperas que aumentan exponencialmente: 1s, 2s, 4s...). 
 
 Para evitar descargar la misma imagen dos veces o consultar repetidamente artículos que no tienen foto, se utiliza un directorio de caché (ImageCacheDir). Si el archivo .img ya existe, se lee desde el disco. Si existe un archivo .noimage, se asume que el artículo no tiene imagen y no se vuelve a consultar a la API.
 
 Si después de todos los reintentos y el fallback la imagen no se puede obtener, el sistema no falla, sino que marca el error específico en el campo Error del objeto ImageArticle, para que el cliente final sepa qué artículos no pudieron obtener su imagen.
+
+## Diagramas de Secuencia
+#### Modificaciones / Nuevas decisiones de diseño
+![alt text](diagrama_secuencia_q1.jpg)
+![alt text](diagrama_secuencia_q2.jpg)
+![alt text](diagrama_secuencia_q3.jpg)
+![alt text](diagrama_secuencia_q4.jpg)
+![alt text](diagrama_secuencia_q5.jpg)
