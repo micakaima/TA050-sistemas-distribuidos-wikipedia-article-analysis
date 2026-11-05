@@ -271,6 +271,7 @@ func (gateway *Gateway) handleQueryResult(msg middleware.Message, clientState cl
 		slog.Debug("While writing QueryResult message", "err", err)
 		return
 	}
+	slog.Info("[GATEWAY] Delivering query result to client", "client", msg.ClientID, "query", queryResult.QueryCode)
 	ack()
 }
 

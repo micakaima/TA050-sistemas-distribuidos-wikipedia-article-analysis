@@ -204,6 +204,7 @@ func (w *Aggregator[T]) publishQueryResult(clientID uint64, result *qresults.Que
 	if err := w.outputQueue.Send(message); err != nil {
 		return err
 	}
+	slog.Info("[AGGREGATOR] Query resolved and published to gateway", "query", w.queryCode, "client", clientID)
 	return nil
 }
 

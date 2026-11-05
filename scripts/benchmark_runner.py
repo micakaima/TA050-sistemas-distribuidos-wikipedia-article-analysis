@@ -42,6 +42,7 @@ def parse_args():
     parser.add_argument("-f", "--compose-file", type=str, default="docker-compose.yaml", help="Path to Docker Compose YAML file")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help="Max timeout in seconds waiting for clients")
     parser.add_argument("-o", "--output-report", type=str, default=DEFAULT_OUTPUT_REPORT, help="Path for markdown benchmark report")
+    parser.add_argument("--no-logs", action="store_true", help="Do not stream container logs to console during distributed run")
     return parser.parse_args()
 
 def log_section(title):
@@ -243,8 +244,21 @@ def stage_run_distributed(args):
     print(f"[*] Monitoreando finalización de clientes: {', '.join(active_client_services)}")
     start_time = time.time()
 
+    log_proc = None
+    if not args.no_logs:
+        # Transmitir logs relevantes en tiempo real para visualizar avance de queries
+        log_services = list(active_client_services) + [
+            "gateway", "q1_aggregator", "q2_aggregator", "q3_aggregator",
+            "q4_aggregator", "q5_aggregator", "image_downloader_0", "image_downloader_1"
+        ]
+        log_cmd = ["docker", "compose", "-f", args.compose_file, "logs", "-f", "--tail=0"] + [s for s in log_services if s in all_services]
+        try:
+            log_proc = subprocess.Popen(log_cmd, stdout=sys.stdout, stderr=sys.stderr)
+        except Exception as e:
+            print(f"[!] No se pudo iniciar el stream de logs: {e}")
+
     up_clients_cmd = ["docker", "compose", "-f", args.compose_file, "up", "-d"] + active_client_services
-    run_command(up_clients_cmd, desc=f"Lanzando {len(active_client_services)} cliente(s) concurrentes")
+    run_command(up_clients_cmd, desc=f"Lanzando {len(active_client_services)} cliente(s) concurrentes", capture_output=True)
 
     deadline = start_time + args.timeout
     finished_clients = set()
@@ -276,6 +290,16 @@ def stage_run_distributed(args):
             break
 
         time.sleep(1.0)
+
+    if log_proc is not None:
+        try:
+            log_proc.terminate()
+            log_proc.wait(timeout=2)
+        except Exception:
+            try:
+                log_proc.kill()
+            except Exception:
+                pass
 
     total_dist_time = time.time() - start_time
 

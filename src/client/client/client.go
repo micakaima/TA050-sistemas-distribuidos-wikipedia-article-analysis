@@ -268,10 +268,15 @@ func (client *Client) saveResult(queryResult qresult.QueryResult) error {
 	default:
 		return fmt.Errorf(errors.UnknownQueryResultCode)
 	}
-	return resultWriter.WriteToFile(path)
+	err := resultWriter.WriteToFile(path)
+	if err == nil {
+		slog.Info("[CLIENT] Query result saved successfully", "query", queryResult.QueryCode, "file", path)
+	}
+	return err
 }
 
 func (client *Client) handleEOF() error {
+	slog.Info("[CLIENT] All query results received and completed successfully")
 	if err := external.WriteAck(client.conn); err != nil {
 		slog.Debug("While writing Ack message", "err", err)
 		return err
