@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -94,7 +96,7 @@ func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAge
 	return nil, errors.New(ExternalAPIError)
 }
 
-func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries int, clientTimeout int, userAgent string) qresults.Q2Result {
+func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries int, clientTimeout int, userAgent string, cacheDir string) qresults.Q2Result {
 	client := &http.Client{Timeout: time.Duration(clientTimeout) * time.Second}
 	results := qresults.NewEmptyImageArticleBatch(0)
 
@@ -116,6 +118,27 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 			result.Error = InternalErrorPrefix
 			results.Add(result)
 			continue
+		}
+
+		// Revisar caché de imágenes en modo solo lectura
+		if cacheDir != "" {
+			imgPath := filepath.Join(cacheDir, fmt.Sprintf("%s.img", r.ArticleID))
+			if imgBytes, err := os.ReadFile(imgPath); err == nil && len(imgBytes) > 0 {
+				slog.Info("Image retrieved from cache", "article_id", r.ArticleID, "name", r.Name)
+				result.ImageBytes = imgBytes
+				result.Error = ""
+				results.Add(result)
+				continue
+			}
+
+			noimgPath := filepath.Join(cacheDir, fmt.Sprintf("%s.noimage", r.ArticleID))
+			if _, err := os.Stat(noimgPath); err == nil {
+				slog.Info("Image confirmed absent in cache (noimage)", "article_id", r.ArticleID, "name", r.Name)
+				result.ImageBytes = nil
+				result.Error = ExternalAPIError
+				results.Add(result)
+				continue
+			}
 		}
 
 		// Descargar con Image URL si está disponible

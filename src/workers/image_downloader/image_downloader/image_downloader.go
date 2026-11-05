@@ -23,6 +23,7 @@ type Config struct {
 	MaxDownloadRetries    int
 	ClientTimeout         int
 	UserAgent             string
+	ImageCacheDir         string
 }
 
 type ImageDownloaderWorker struct {
@@ -33,6 +34,7 @@ type ImageDownloaderWorker struct {
 	maxDownloadRetries int
 	clientTimeout      int
 	userAgent          string
+	imageCacheDir      string
 }
 
 func New(config Config) (*ImageDownloaderWorker, error) {
@@ -56,6 +58,7 @@ func New(config Config) (*ImageDownloaderWorker, error) {
 		maxDownloadRetries: config.MaxDownloadRetries,
 		clientTimeout:      config.ClientTimeout,
 		userAgent:          config.UserAgent,
+		imageCacheDir:      config.ImageCacheDir,
 	}, nil
 }
 
@@ -87,7 +90,7 @@ func (w *ImageDownloaderWorker) handleMessage(msg middleware.Message, ack, nack 
 			nack()
 			return
 		}
-		result := logic.DownloadImage(*batch, w.maxDownloadRetries, w.clientTimeout, w.userAgent)
+		result := logic.DownloadImage(*batch, w.maxDownloadRetries, w.clientTimeout, w.userAgent, w.imageCacheDir)
 		resultMessage, err := middleware.NewMessage(msg.ClientID, messages.Q2ResultCode, &result)
 		if err != nil || w.outputQueue.Send(*resultMessage) != nil {
 			nack()

@@ -5,63 +5,60 @@ services:
       dockerfile: src/client/Dockerfile
     container_name: client_0
     depends_on:
-      - gateway
-      - column_filter_0
-      - column_filter_1
+    - gateway
+    - column_filter_0
+    - column_filter_1
     environment:
-      - INPUT_DIR=/input/input_0
-      - OUTPUT_DIR=/output/output_0
-      - SERVER_HOST=gateway
-      - SERVER_PORT=5678
-      - BATCH_SIZE=5
-      - CONNECTION_ATTEMPS=10
-      - CONNECTION_ATTEMPTS_DELAY_MS=1000
+    - INPUT_DIR=/input/input_0
+    - OUTPUT_DIR=/output/output_0
+    - SERVER_HOST=gateway
+    - SERVER_PORT=5678
+    - CONNECTION_ATTEMPS=10
+    - CONNECTION_ATTEMPTS_DELAY_MS=1000
+    - BATCH_SIZE=5
     volumes:
-      - ./data/input:/input
-      - ./data/output:/output
-
+    - ./data/input:/input
+    - ./data/output:/output
   client_1:
     build:
       context: .
       dockerfile: src/client/Dockerfile
     container_name: client_1
     depends_on:
-      - gateway
-      - column_filter_0
-      - column_filter_1
+    - gateway
+    - column_filter_0
+    - column_filter_1
     environment:
-      - INPUT_DIR=/input/input_1
-      - OUTPUT_DIR=/output/output_1
-      - SERVER_HOST=gateway
-      - SERVER_PORT=5678
-      - BATCH_SIZE=5
-      - CONNECTION_ATTEMPS=10
-      - CONNECTION_ATTEMPTS_DELAY_MS=1000
+    - INPUT_DIR=/input/input_1
+    - OUTPUT_DIR=/output/output_1
+    - SERVER_HOST=gateway
+    - SERVER_PORT=5678
+    - CONNECTION_ATTEMPS=10
+    - CONNECTION_ATTEMPTS_DELAY_MS=1000
+    - BATCH_SIZE=5
     volumes:
-      - ./data/input:/input
-      - ./data/output:/output
-
+    - ./data/input:/input
+    - ./data/output:/output
   client_2:
     build:
       context: .
       dockerfile: src/client/Dockerfile
     container_name: client_2
     depends_on:
-      - gateway
-      - column_filter_0
-      - column_filter_1
+    - gateway
+    - column_filter_0
+    - column_filter_1
     environment:
-      - INPUT_DIR=/input/input_2
-      - OUTPUT_DIR=/output/output_2
-      - SERVER_HOST=gateway
-      - SERVER_PORT=5678
-      - BATCH_SIZE=5
-      - CONNECTION_ATTEMPS=10
-      - CONNECTION_ATTEMPTS_DELAY_MS=1000
+    - INPUT_DIR=/input/input_2
+    - OUTPUT_DIR=/output/output_2
+    - SERVER_HOST=gateway
+    - SERVER_PORT=5678
+    - CONNECTION_ATTEMPS=10
+    - CONNECTION_ATTEMPTS_DELAY_MS=1000
+    - BATCH_SIZE=5
     volumes:
-      - ./data/input:/input
-      - ./data/output:/output
-
+    - ./data/input:/input
+    - ./data/output:/output
   gateway:
     build:
       context: .
@@ -71,14 +68,13 @@ services:
       rabbitmq:
         condition: service_healthy
     environment:
-      - SERVER_HOST=gateway
-      - SERVER_PORT=5678
-      - COLUMN_FILTER_AMOUNT=2
-      - COLUMN_FILTER_PREFIX=column_filter
-      - OUTPUT_QUEUE=results_queue
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-
+    - SERVER_HOST=gateway
+    - SERVER_PORT=5678
+    - OUTPUT_QUEUE=results_queue
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - COLUMN_FILTER_AMOUNT=2
+    - COLUMN_FILTER_PREFIX=column_filter
   rabbitmq:
     build:
       context: ./src/rabbitmq
@@ -95,463 +91,441 @@ services:
     ports:
     - 5672:5672
     - 15672:15672
-
   column_filter_0:
     build:
       context: .
       dockerfile: src/workers/column_filter/Dockerfile
     container_name: column_filter_0
     depends_on:
-      - vocabulary_extractor_0
-      - vocabulary_extractor_1
-      - year_filter_0
-      - year_filter_1
+    - vocabulary_extractor_0
+    - vocabulary_extractor_1
+    - year_filter_0
+    - year_filter_1
     environment:
-      - ID=0
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - COLUMN_FILTER_PREFIX=column_filter
-      - YEAR_FILTER_AMOUNT=2
-      - YEAR_FILTER_PREFIX=year_filter
-      - VOCABULARY_EXTRACTOR_AMOUNT=2
-      - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
-  
+    - ID=0
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - COLUMN_FILTER_PREFIX=column_filter
+    - YEAR_FILTER_AMOUNT=2
+    - YEAR_FILTER_PREFIX=year_filter
+    - VOCABULARY_EXTRACTOR_AMOUNT=2
+    - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
   column_filter_1:
     build:
       context: .
       dockerfile: src/workers/column_filter/Dockerfile
     container_name: column_filter_1
     depends_on:
-      - vocabulary_extractor_0
-      - vocabulary_extractor_1
-      - year_filter_0
-      - year_filter_1
+    - vocabulary_extractor_0
+    - vocabulary_extractor_1
+    - year_filter_0
+    - year_filter_1
     environment:
-      - ID=1
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - COLUMN_FILTER_PREFIX=column_filter
-      - YEAR_FILTER_AMOUNT=2
-      - YEAR_FILTER_PREFIX=year_filter
-      - VOCABULARY_EXTRACTOR_AMOUNT=2
-      - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
-
-
+    - ID=1
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - COLUMN_FILTER_PREFIX=column_filter
+    - YEAR_FILTER_AMOUNT=2
+    - YEAR_FILTER_PREFIX=year_filter
+    - VOCABULARY_EXTRACTOR_AMOUNT=2
+    - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
   vocabulary_extractor_0:
     build:
       context: .
       dockerfile: src/workers/vocabulary_extractor/Dockerfile
     container_name: vocabulary_extractor_0
     depends_on:
-      - year_splitter
-      - shared_words_aggregator_0
-      - shared_words_aggregator_1
-      - partial_top_aggregator_0
-      - partial_top_aggregator_1
+    - year_splitter
+    - shared_words_aggregator_0
+    - shared_words_aggregator_1
+    - partial_top_aggregator_0
+    - partial_top_aggregator_1
     environment:
-      - ID=0
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
-      - OUTPUT_QUEUE=year_splitter_queue
-      - SHARED_WORDS_AGGREGATOR_AMOUNT=2
-      - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
-      - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
-      - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
-      - COLUMN_FILTER_AMOUNT=2
-
+    - ID=0
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
+    - OUTPUT_QUEUE=year_splitter_queue
+    - SHARED_WORDS_AGGREGATOR_AMOUNT=2
+    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
+    - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
+    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
+    - COLUMN_FILTER_AMOUNT=2
   vocabulary_extractor_1:
     build:
       context: .
       dockerfile: src/workers/vocabulary_extractor/Dockerfile
     container_name: vocabulary_extractor_1
     depends_on:
-      - year_splitter
-      - shared_words_aggregator_0
-      - shared_words_aggregator_1
-      - partial_top_aggregator_0
-      - partial_top_aggregator_1
+    - year_splitter
+    - shared_words_aggregator_0
+    - shared_words_aggregator_1
+    - partial_top_aggregator_0
+    - partial_top_aggregator_1
     environment:
-      - ID=1
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
-      - OUTPUT_QUEUE=year_splitter_queue
-      - SHARED_WORDS_AGGREGATOR_AMOUNT=2
-      - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
-      - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
-      - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
-      - COLUMN_FILTER_AMOUNT=2
-
+    - ID=1
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
+    - OUTPUT_QUEUE=year_splitter_queue
+    - SHARED_WORDS_AGGREGATOR_AMOUNT=2
+    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
+    - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
+    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
+    - COLUMN_FILTER_AMOUNT=2
   shared_words_aggregator_0:
     build:
       context: .
       dockerfile: src/workers/shared_words_aggregator/Dockerfile
     container_name: shared_words_aggregator_0
     depends_on:
-      - q3_aggregator
+    - q3_aggregator
     environment:
-      - ID=0
-      - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
-      - OUTPUT_QUEUE=q3_results_queue
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - VOCABULARY_EXTRACTOR_AMOUNT=2
-
+    - ID=0
+    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
+    - OUTPUT_QUEUE=q3_results_queue
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - VOCABULARY_EXTRACTOR_AMOUNT=2
   shared_words_aggregator_1:
     build:
       context: .
       dockerfile: src/workers/shared_words_aggregator/Dockerfile
     container_name: shared_words_aggregator_1
     depends_on:
-      - q3_aggregator
+    - q3_aggregator
     environment:
-      - ID=1
-      - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
-      - OUTPUT_QUEUE=q3_results_queue
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - VOCABULARY_EXTRACTOR_AMOUNT=2
-
+    - ID=1
+    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
+    - OUTPUT_QUEUE=q3_results_queue
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - VOCABULARY_EXTRACTOR_AMOUNT=2
   year_splitter:
     build:
       context: .
       dockerfile: src/workers/year_splitter/Dockerfile
     container_name: year_splitter
     depends_on:
-      - old_articles_averager_0
-      - old_articles_averager_1
-      - above_average_filter_0
-      - above_average_filter_1
+    - old_articles_averager_0
+    - old_articles_averager_1
+    - above_average_filter_0
+    - above_average_filter_1
     environment:
-      - OLD_ARTICLES_AVERAGER_AMOUNT=2
-      - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
-      - ABOVE_AVERAGE_FILTER_AMOUNT=2
-      - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - INPUT_QUEUE=year_splitter_queue
-      - VOCABULARY_EXTRACTOR_AMOUNT=2
-  
+    - OLD_ARTICLES_AVERAGER_AMOUNT=2
+    - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
+    - ABOVE_AVERAGE_FILTER_AMOUNT=2
+    - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - INPUT_QUEUE=year_splitter_queue
+    - VOCABULARY_EXTRACTOR_AMOUNT=2
   old_articles_averager_0:
     build:
       context: .
       dockerfile: src/workers/old_articles_averager/Dockerfile
     container_name: old_articles_averager_0
     depends_on:
-      - above_average_filter_0
-      - above_average_filter_1
+    - above_average_filter_0
+    - above_average_filter_1
     environment:
-      - ID=0
-      - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
-      - ABOVE_AVERAGE_FILTER_AMOUNT=2
-      - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-
+    - ID=0
+    - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
+    - ABOVE_AVERAGE_FILTER_AMOUNT=2
+    - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
   old_articles_averager_1:
     build:
       context: .
       dockerfile: src/workers/old_articles_averager/Dockerfile
     container_name: old_articles_averager_1
     depends_on:
-      - above_average_filter_0
-      - above_average_filter_1
+    - above_average_filter_0
+    - above_average_filter_1
     environment:
-      - ID=1
-      - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
-      - ABOVE_AVERAGE_FILTER_AMOUNT=2
-      - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-  
+    - ID=1
+    - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
+    - ABOVE_AVERAGE_FILTER_AMOUNT=2
+    - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
   above_average_filter_0:
     build:
       context: .
       dockerfile: src/workers/above_average_filter/Dockerfile
     container_name: above_average_filter_0
     depends_on:
-      - q5_aggregator
+    - q5_aggregator
     environment:
-      - ID=0
-      - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
-      - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - OUTPUT_QUEUE=q5_results_queue
-      - BATCH_SIZE=1000
-
+    - ID=0
+    - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
+    - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - OUTPUT_QUEUE=q5_results_queue
+    - BATCH_SIZE=1000
   above_average_filter_1:
     build:
       context: .
       dockerfile: src/workers/above_average_filter/Dockerfile
     container_name: above_average_filter_1
     depends_on:
-      - q5_aggregator
+    - q5_aggregator
     environment:
-      - ID=1
-      - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
-      - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - OUTPUT_QUEUE=q5_results_queue
-      - BATCH_SIZE=1000
-
+    - ID=1
+    - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
+    - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - OUTPUT_QUEUE=q5_results_queue
+    - BATCH_SIZE=1000
   year_filter_0:
     build:
       context: .
       dockerfile: src/workers/year_filter/Dockerfile
     container_name: year_filter_0
     depends_on:
-      - english_filter_0
-      - english_filter_1
-      - bio_filter_0
-      - bio_filter_1
+    - english_filter_0
+    - english_filter_1
+    - bio_filter_0
+    - bio_filter_1
     environment:
-      - ID=0
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - YEAR_FILTER_PREFIX=year_filter
-      - ENGLISH_FILTER_AMOUNT=2
-      - ENGLISH_FILTER_PREFIX=english_filter
-      - BIO_FILTER_AMOUNT=2
-      - BIO_FILTER_PREFIX=bio_filter
-      - YEAR=2020
-      - COLUMN_FILTER_AMOUNT=2
-
+    - ID=0
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - YEAR_FILTER_PREFIX=year_filter
+    - ENGLISH_FILTER_AMOUNT=2
+    - ENGLISH_FILTER_PREFIX=english_filter
+    - BIO_FILTER_AMOUNT=2
+    - BIO_FILTER_PREFIX=bio_filter
+    - YEAR=2020
+    - COLUMN_FILTER_AMOUNT=2
   year_filter_1:
     build:
       context: .
       dockerfile: src/workers/year_filter/Dockerfile
     container_name: year_filter_1
     depends_on:
-      - english_filter_0
-      - english_filter_1
-      - bio_filter_0
-      - bio_filter_1
+    - english_filter_0
+    - english_filter_1
+    - bio_filter_0
+    - bio_filter_1
     environment:
-      - ID=1
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - YEAR_FILTER_PREFIX=year_filter
-      - ENGLISH_FILTER_AMOUNT=2
-      - ENGLISH_FILTER_PREFIX=english_filter
-      - BIO_FILTER_AMOUNT=2
-      - BIO_FILTER_PREFIX=bio_filter
-      - YEAR=2020
-      - COLUMN_FILTER_AMOUNT=2
-
+    - ID=1
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - YEAR_FILTER_PREFIX=year_filter
+    - ENGLISH_FILTER_AMOUNT=2
+    - ENGLISH_FILTER_PREFIX=english_filter
+    - BIO_FILTER_AMOUNT=2
+    - BIO_FILTER_PREFIX=bio_filter
+    - YEAR=2020
+    - COLUMN_FILTER_AMOUNT=2
   english_filter_0:
     build:
       context: .
       dockerfile: src/workers/english_filter/Dockerfile
     container_name: english_filter_0
     depends_on:
-      - q1_aggregator
+    - q1_aggregator
     environment:
-      - ID=0
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - ENGLISH_FILTER_PREFIX=english_filter
-      - OUTPUT_QUEUE=q1_results_queue
-      - YEAR_FILTER_AMOUNT=2
-
+    - ID=0
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - ENGLISH_FILTER_PREFIX=english_filter
+    - OUTPUT_QUEUE=q1_results_queue
+    - YEAR_FILTER_AMOUNT=2
   english_filter_1:
     build:
       context: .
       dockerfile: src/workers/english_filter/Dockerfile
     container_name: english_filter_1
     depends_on:
-      - q1_aggregator
+    - q1_aggregator
     environment:
-      - ID=1
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - ENGLISH_FILTER_PREFIX=english_filter
-      - OUTPUT_QUEUE=q1_results_queue
-      - YEAR_FILTER_AMOUNT=2
-
+    - ID=1
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - ENGLISH_FILTER_PREFIX=english_filter
+    - OUTPUT_QUEUE=q1_results_queue
+    - YEAR_FILTER_AMOUNT=2
   bio_filter_0:
     build:
       context: .
       dockerfile: src/workers/bio_filter/Dockerfile
     container_name: bio_filter_0
     depends_on:
-      - image_downloader_0
-      - image_downloader_1
+    - image_downloader_0
+    - image_downloader_1
     environment:
-      - ID=0
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - BIO_FILTER_PREFIX=bio_filter
-      - IMAGE_DOWNLOADER_AMOUNT=2
-      - IMAGE_DOWNLOADER_PREFIX=image_downloader
-      - YEAR_FILTER_AMOUNT=2
-
+    - ID=0
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - BIO_FILTER_PREFIX=bio_filter
+    - IMAGE_DOWNLOADER_AMOUNT=2
+    - IMAGE_DOWNLOADER_PREFIX=image_downloader
+    - YEAR_FILTER_AMOUNT=2
   bio_filter_1:
     build:
       context: .
       dockerfile: src/workers/bio_filter/Dockerfile
     container_name: bio_filter_1
     depends_on:
-      - image_downloader_0
-      - image_downloader_1
+    - image_downloader_0
+    - image_downloader_1
     environment:
-      - ID=1
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - BIO_FILTER_PREFIX=bio_filter
-      - IMAGE_DOWNLOADER_AMOUNT=2
-      - IMAGE_DOWNLOADER_PREFIX=image_downloader
-      - YEAR_FILTER_AMOUNT=2
-    
+    - ID=1
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - BIO_FILTER_PREFIX=bio_filter
+    - IMAGE_DOWNLOADER_AMOUNT=2
+    - IMAGE_DOWNLOADER_PREFIX=image_downloader
+    - YEAR_FILTER_AMOUNT=2
   image_downloader_0:
     build:
       context: .
       dockerfile: src/workers/image_downloader/Dockerfile
     container_name: image_downloader_0
     depends_on:
-      - q2_aggregator
+    - q2_aggregator
     environment:
-      - ID=0
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - IMAGE_DOWNLOADER_PREFIX=image_downloader
-      - OUTPUT_QUEUE=q2_results_queue
-      - BIO_FILTER_AMOUNT=2
-      - MAX_DOWNLOAD_RETRIES=3
-      - CLIENT_TIMEOUT=10
-      - USER_AGENT=Wikipedia-Article-Analysis/1.0
-
+    - ID=0
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - IMAGE_DOWNLOADER_PREFIX=image_downloader
+    - OUTPUT_QUEUE=q2_results_queue
+    - BIO_FILTER_AMOUNT=2
+    - MAX_DOWNLOAD_RETRIES=3
+    - CLIENT_TIMEOUT=10
+    - USER_AGENT=Wikipedia-Article-Analysis/1.0_0
+    - IMAGE_CACHE_DIR=/data/cache/images
+    volumes:
+    - ./data/cache/images:/data/cache/images:ro
   image_downloader_1:
     build:
       context: .
       dockerfile: src/workers/image_downloader/Dockerfile
     container_name: image_downloader_1
     depends_on:
-      - q2_aggregator
+    - q2_aggregator
     environment:
-      - ID=1
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - IMAGE_DOWNLOADER_PREFIX=image_downloader
-      - OUTPUT_QUEUE=q2_results_queue
-      - BIO_FILTER_AMOUNT=2
-      - MAX_DOWNLOAD_RETRIES=3
-      - CLIENT_TIMEOUT=10
-      - USER_AGENT=Wikipedia-Article-Analysis/1.0
-
-  q1_aggregator:
-    build:
-      context: .
-      dockerfile: src/workers/result_aggregator/q1_result_aggregator/Dockerfile
-    container_name: q1_aggregator
-    depends_on:
-      - gateway
+    - ID=1
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - IMAGE_DOWNLOADER_PREFIX=image_downloader
+    - OUTPUT_QUEUE=q2_results_queue
+    - BIO_FILTER_AMOUNT=2
+    - MAX_DOWNLOAD_RETRIES=3
+    - CLIENT_TIMEOUT=10
+    - USER_AGENT=Wikipedia-Article-Analysis/1.0_1
+    - IMAGE_CACHE_DIR=/data/cache/images
     volumes:
-      - ./data/storage:/app/storage
-    environment:
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - INPUT_QUEUE=q1_results_queue
-      - OUTPUT_QUEUE=results_queue
-      - STORAGE_DIR=/app/storage
-      - ENGLISH_FILTER_AMOUNT=2
-  
-  q2_aggregator:
-    build:
-      context: .
-      dockerfile: src/workers/result_aggregator/q2_result_aggregator/Dockerfile
-    container_name: q2_aggregator
-    depends_on:
-      - gateway
-    volumes:
-      - ./data/storage:/app/storage
-    environment:
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - INPUT_QUEUE=q2_results_queue
-      - OUTPUT_QUEUE=results_queue
-      - STORAGE_DIR=/app/storage
-      - IMAGE_DOWNLOADER_AMOUNT=2
-
-
-  q3_aggregator:
-    build:
-      context: .
-      dockerfile: src/workers/result_aggregator/q3_result_aggregator/Dockerfile
-    container_name: q3_aggregator
-    depends_on:
-      - gateway
-    volumes:
-      - ./data/storage:/app/storage
-    environment:
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - INPUT_QUEUE=q3_results_queue
-      - OUTPUT_QUEUE=results_queue
-      - STORAGE_DIR=/app/storage
-      - SHARED_WORDS_AGGREGATOR_AMOUNT=2
-
+    - ./data/cache/images:/data/cache/images:ro
   partial_top_aggregator_0:
     build:
       context: .
       dockerfile: src/workers/partial_top_aggregator/Dockerfile
     container_name: partial_top_aggregator_0
     depends_on:
-      - q4_aggregator
+    - q4_aggregator
     environment:
-      - ID=0
-      - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
-      - OUTPUT_QUEUE=q4_results_queue
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - VOCABULARY_EXTRACTOR_AMOUNT=2
-
+    - ID=0
+    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
+    - OUTPUT_QUEUE=q4_results_queue
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - VOCABULARY_EXTRACTOR_AMOUNT=2
   partial_top_aggregator_1:
     build:
       context: .
       dockerfile: src/workers/partial_top_aggregator/Dockerfile
     container_name: partial_top_aggregator_1
     depends_on:
-      - q4_aggregator
+    - q4_aggregator
     environment:
-      - ID=1
-      - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
-      - OUTPUT_QUEUE=q4_results_queue
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - VOCABULARY_EXTRACTOR_AMOUNT=2
-
+    - ID=1
+    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
+    - OUTPUT_QUEUE=q4_results_queue
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - VOCABULARY_EXTRACTOR_AMOUNT=2
+  q1_aggregator:
+    build:
+      context: .
+      dockerfile: src/workers/result_aggregator/q1_result_aggregator/Dockerfile
+    container_name: q1_aggregator
+    depends_on:
+    - gateway
+    volumes:
+    - ./data/storage:/app/storage
+    environment:
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - INPUT_QUEUE=q1_results_queue
+    - OUTPUT_QUEUE=results_queue
+    - STORAGE_DIR=/app/storage
+    - ENGLISH_FILTER_AMOUNT=2
+  q2_aggregator:
+    build:
+      context: .
+      dockerfile: src/workers/result_aggregator/q2_result_aggregator/Dockerfile
+    container_name: q2_aggregator
+    depends_on:
+    - gateway
+    volumes:
+    - ./data/storage:/app/storage
+    environment:
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - INPUT_QUEUE=q2_results_queue
+    - OUTPUT_QUEUE=results_queue
+    - STORAGE_DIR=/app/storage
+    - IMAGE_DOWNLOADER_AMOUNT=2
+  q3_aggregator:
+    build:
+      context: .
+      dockerfile: src/workers/result_aggregator/q3_result_aggregator/Dockerfile
+    container_name: q3_aggregator
+    depends_on:
+    - gateway
+    volumes:
+    - ./data/storage:/app/storage
+    environment:
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - INPUT_QUEUE=q3_results_queue
+    - OUTPUT_QUEUE=results_queue
+    - STORAGE_DIR=/app/storage
+    - SHARED_WORDS_AGGREGATOR_AMOUNT=2
   q4_aggregator:
     build:
       context: .
       dockerfile: src/workers/result_aggregator/q4_result_aggregator/Dockerfile
     container_name: q4_aggregator
     depends_on:
-      - gateway
+    - gateway
     volumes:
-      - ./data/storage:/app/storage
+    - ./data/storage:/app/storage
     environment:
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - INPUT_QUEUE=q4_results_queue
-      - OUTPUT_QUEUE=results_queue
-      - STORAGE_DIR=/app/storage
-      - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
-
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - INPUT_QUEUE=q4_results_queue
+    - OUTPUT_QUEUE=results_queue
+    - STORAGE_DIR=/app/storage
+    - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
   q5_aggregator:
     build:
       context: .
       dockerfile: src/workers/result_aggregator/q5_result_aggregator/Dockerfile
     container_name: q5_aggregator
     depends_on:
-      - gateway
+    - gateway
     volumes:
-      - ./data/storage:/app/storage
+    - ./data/storage:/app/storage
     environment:
-      - MOM_HOST=rabbitmq
-      - MOM_PORT=5672
-      - INPUT_QUEUE=q5_results_queue
-      - OUTPUT_QUEUE=results_queue
-      - STORAGE_DIR=/app/storage
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - INPUT_QUEUE=q5_results_queue
+    - OUTPUT_QUEUE=results_queue
+    - STORAGE_DIR=/app/storage

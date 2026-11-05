@@ -166,6 +166,10 @@ def generate_image_downloader_containers(docker_compose):
                 f"MAX_DOWNLOAD_RETRIES={MAX_DOWNLOAD_RETRIES}",
                 f"CLIENT_TIMEOUT={CLIENT_TIMEOUT}",
                 f"USER_AGENT={USER_AGENT}_{i}",
+                "IMAGE_CACHE_DIR=/data/cache/images",
+            ],
+            "volumes": [
+                "./data/cache/images:/data/cache/images:ro",
             ]
         }
 
