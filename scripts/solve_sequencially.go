@@ -284,7 +284,7 @@ func obtainOldArticlesAverage(wordCounts []messages.WordCount) float64 {
 	totalSum := uint32(0)
 	totalCant := 0
 	for _, wc := range wordCounts {
-		year := time.UnixMilli(wc.DateModified).Year()
+		year := time.UnixMilli(wc.DateModified).UTC().Year()
 		if year <= SPLITTER_YEAR {
 			totalSum += wc.WordCount
 			totalCant++
@@ -299,7 +299,7 @@ func obtainOldArticlesAverage(wordCounts []messages.WordCount) float64 {
 func obtainAboveAverageArticles(oldAverage float64, wordCounts []messages.WordCount) []qresult.AboveAverageArticle {
 	aboveAverageArticles := make([]qresult.AboveAverageArticle, 0)
 	for _, wc := range wordCounts {
-		year := time.UnixMilli(wc.DateModified).Year()
+		year := time.UnixMilli(wc.DateModified).UTC().Year()
 		if year > SPLITTER_YEAR && float64(wc.WordCount) > oldAverage {
 			aboveAverageArticles = append(aboveAverageArticles, qresult.AboveAverageArticle{
 				ArticleID: wc.ArticleID,
