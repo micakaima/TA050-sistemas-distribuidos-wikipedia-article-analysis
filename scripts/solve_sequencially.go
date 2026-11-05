@@ -1,13 +1,18 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	download "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/logic"
@@ -20,13 +25,15 @@ import (
 	"github.com/parquet-go/parquet-go"
 )
 
-const PUNCTUATION_SYMBOLS = "-.,():;!?[]{}'\""
-const SPLITTER_YEAR = 2020
-const QUERY1_OUTPUT_FILENAME = "query_1_result.txt"
-const QUERY2_OUTPUT_FILENAME = "query_2_result.txt"
-const QUERY3_OUTPUT_FILENAME = "query_3_result.txt"
-const QUERY4_OUTPUT_FILENAME = "query_4_result.txt"
-const QUERY5_OUTPUT_FILENAME = "query_5_result.txt"
+const (
+	PUNCTUATION_SYMBOLS    = "-.,():;!?[]{}'\""
+	SPLITTER_YEAR          = 2020
+	QUERY1_OUTPUT_FILENAME = "query_1_result.txt"
+	QUERY2_OUTPUT_FILENAME = "query_2_result.txt"
+	QUERY3_OUTPUT_FILENAME = "query_3_result.txt"
+	QUERY4_OUTPUT_FILENAME = "query_4_result.txt"
+	QUERY5_OUTPUT_FILENAME = "query_5_result.txt"
+)
 
 func parseArguments() (string, string, int, error) {
 	args := os.Args[1:]
@@ -202,13 +209,146 @@ func obtainEnglish2020Articles(records []record.Record) []qresult.English2020Art
 	return english2020Articles
 }
 
+const (
+	IMAGE_CACHE_DIR                = "data/cache/images"
+	MAX_CONCURRENT_IMAGE_DOWNLOADS = 3
+)
+
+type WikiSummaryResponse struct {
+	Thumbnail *struct {
+		Source string `json:"source"`
+	} `json:"thumbnail"`
+}
+
+func saveCachedFile(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmpPath := fmt.Sprintf("%s.tmp.%d", path, time.Now().UnixNano())
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
+}
+
+func requestBytesHelper(client *http.Client, targetUrl string, maxRetries int, userAgent string, articleID int) ([]byte, int, error) {
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		req, err := http.NewRequest(http.MethodGet, targetUrl, nil)
+		if err != nil {
+			return nil, 0, err
+		}
+		req.Header.Set("User-Agent", userAgent)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			if attempt < maxRetries-1 {
+				time.Sleep(time.Duration(1<<uint(attempt))*time.Second + time.Duration(articleID%500)*time.Millisecond)
+				continue
+			}
+			return nil, 0, err
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		statusCode := resp.StatusCode
+		resp.Body.Close()
+
+		if statusCode == http.StatusOK && err == nil {
+			return body, statusCode, nil
+		}
+
+		if statusCode == http.StatusNotFound {
+			return nil, statusCode, nil
+		}
+
+		if statusCode == http.StatusTooManyRequests {
+			retryAfter := resp.Header.Get("Retry-After")
+			sec, err := strconv.Atoi(retryAfter)
+			if err == nil && sec > 0 {
+				if sec > 10 {
+					return nil, statusCode, fmt.Errorf("rate limited (retry-after %d)", sec)
+				}
+				time.Sleep(time.Duration(sec) * time.Second)
+				continue
+			}
+		}
+
+		if attempt < maxRetries-1 {
+			time.Sleep(time.Duration(1<<uint(attempt))*time.Second + time.Duration(articleID%500)*time.Millisecond)
+			continue
+		}
+		return nil, statusCode, fmt.Errorf("HTTP status %d", statusCode)
+	}
+	return nil, 0, errors.New("max retries exceeded")
+}
+
+func fetchCandidateImage(client *http.Client, cand *messages.ImageCandidate, maxRetries int, userAgent string) ([]byte, string, bool) {
+	id, err := strconv.Atoi(cand.ArticleID)
+	if err != nil {
+		return nil, download.InternalErrorPrefix, true
+	}
+
+	// 1. Si viene con ImageURL en el dataset, intentar descargarla
+	if cand.ImageURL != "" {
+		body, status, err := requestBytesHelper(client, cand.ImageURL, maxRetries, userAgent, id)
+		if status == http.StatusOK && err == nil && len(body) > 0 {
+			return body, "", false
+		}
+	}
+
+	// 2. Consultar la API REST de Wikipedia
+	splittedURL := strings.Split(cand.URL, "/wiki/")
+	if len(splittedURL) != 2 {
+		return nil, download.InternalErrorPrefix, true
+	}
+	title := splittedURL[1]
+	language := "en"
+	if strings.Contains(cand.URL, ".fr.wikipedia.org") {
+		language = "fr"
+	}
+	apiURL := fmt.Sprintf("https://%s.wikipedia.org/api/rest_v1/page/summary/%s", language, url.PathEscape(title))
+
+	body, status, err := requestBytesHelper(client, apiURL, maxRetries, userAgent, id)
+	if status == http.StatusNotFound {
+		// La página no existe en Wikipedia (404 definitivo)
+		return nil, download.ExternalAPIError, true
+	}
+	if err != nil || status != http.StatusOK {
+		// Fallo transitorio (red / timeout) -> no cachear para reintentar
+		return nil, download.ExternalAPIError, false
+	}
+
+	var summary WikiSummaryResponse
+	if err := json.Unmarshal(body, &summary); err != nil {
+		return nil, download.InternalErrorPrefix, true
+	}
+
+	if summary.Thumbnail == nil || summary.Thumbnail.Source == "" {
+		// El artículo definitivamente no tiene thumbnail/foto en Wikipedia
+		return nil, download.ExternalAPIError, true
+	}
+
+	// 3. Descargar el thumbnail
+	imgBody, imgStatus, imgErr := requestBytesHelper(client, summary.Thumbnail.Source, maxRetries, userAgent, id)
+	if imgStatus == http.StatusNotFound {
+		// Thumbnail borrado o inexistente (404 definitivo)
+		return nil, download.ExternalAPIError, true
+	}
+	if imgErr != nil || imgStatus != http.StatusOK {
+		// Fallo transitorio
+		return nil, download.ExternalAPIError, false
+	}
+
+	return imgBody, "", false
+}
+
 func obtainBio2020Articles(records []record.Record) ([]qresult.ImageArticle, error) {
-	imagesCandidates := messages.NewEmptyImageCandidateBatch(0)
+	candidates := make([]*messages.ImageCandidate, 0)
 	for _, r := range records {
 		year := time.UnixMilli(r.DateModified).UTC().Year()
 		sections := strings.ToLower(r.Sections)
 		if year <= SPLITTER_YEAR && (strings.Contains(sections, "biography") || strings.Contains(sections, "biographie")) {
-			imagesCandidates.Add(&messages.ImageCandidate{
+			candidates = append(candidates, &messages.ImageCandidate{
 				ArticleID: r.ArticleID,
 				ImageURL:  r.Image.ContentURL,
 				Name:      r.Name,
@@ -216,11 +356,80 @@ func obtainBio2020Articles(records []record.Record) ([]qresult.ImageArticle, err
 			})
 		}
 	}
-	q2Result := download.DownloadImage(imagesCandidates, 3, 10, "Wikipedia-Article-Analysis/1.0")
-	bio2020Articles := make([]qresult.ImageArticle, 0, q2Result.ResultArticles.Len())
-	for _, a := range q2Result.ResultArticles.Items {
-		bio2020Articles = append(bio2020Articles, *a)
+
+	bio2020Articles := make([]qresult.ImageArticle, len(candidates))
+	sem := make(chan struct{}, MAX_CONCURRENT_IMAGE_DOWNLOADS)
+	rateLimiter := time.NewTicker(250 * time.Millisecond)
+	defer rateLimiter.Stop()
+	var wg sync.WaitGroup
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	userAgent := "Wikipedia-Article-Analysis/1.0 (academic-testing; fiuba-distribuidos)"
+
+	cacheHits := 0
+	toDownload := 0
+
+	for i, cand := range candidates {
+		imgPath := filepath.Join(IMAGE_CACHE_DIR, fmt.Sprintf("%s.img", cand.ArticleID))
+		noimgPath := filepath.Join(IMAGE_CACHE_DIR, fmt.Sprintf("%s.noimage", cand.ArticleID))
+
+		// 1. Imagen exitosa en caché
+		if imgData, err := os.ReadFile(imgPath); err == nil && len(imgData) > 0 {
+			bio2020Articles[i] = qresult.ImageArticle{
+				ArticleID:  cand.ArticleID,
+				Name:       cand.Name,
+				URL:        cand.URL,
+				ImageBytes: imgData,
+				Error:      "",
+			}
+			cacheHits++
+			continue
+		}
+
+		// 2. Sin imagen definitiva en caché (404 / no thumbnail)
+		if _, err := os.Stat(noimgPath); err == nil {
+			bio2020Articles[i] = qresult.ImageArticle{
+				ArticleID:  cand.ArticleID,
+				Name:       cand.Name,
+				URL:        cand.URL,
+				ImageBytes: nil,
+				Error:      download.ExternalAPIError,
+			}
+			cacheHits++
+			continue
+		}
+
+		// 3. Descarga pendiente
+		toDownload++
+		wg.Add(1)
+		go func(idx int, c *messages.ImageCandidate, iPath, nPath string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			imgBytes, errStr, isPermanent := fetchCandidateImage(client, c, 3, userAgent)
+			bio2020Articles[idx] = qresult.ImageArticle{
+				ArticleID:  c.ArticleID,
+				Name:       c.Name,
+				URL:        c.URL,
+				ImageBytes: imgBytes,
+				Error:      errStr,
+			}
+
+			if len(imgBytes) > 0 && errStr == "" {
+				_ = saveCachedFile(iPath, imgBytes)
+			} else if isPermanent {
+				_ = saveCachedFile(nPath, []byte(errStr))
+			}
+		}(i, cand, imgPath, noimgPath)
+		<-rateLimiter.C
 	}
+
+	wg.Wait()
+	if cacheHits > 0 || toDownload > 0 {
+		fmt.Printf("[CACHE Q2] Biografías procesadas: %d (Caché hits: %d, Descargas en paralelo: %d)\n", len(candidates), cacheHits, toDownload)
+	}
+
 	return bio2020Articles, nil
 }
 
@@ -316,7 +525,7 @@ func createPath(path string) (*os.File, error) {
 	if err := os.RemoveAll(path); err != nil {
 		return nil, fmt.Errorf("[ERROR] While removing original path")
 	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("[ERROR] While creating path for output")
 	}
 	file, err := os.Create(path)
