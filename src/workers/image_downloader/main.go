@@ -41,8 +41,8 @@ func loadConfig() (image_downloader.Config, error) {
 	}
 
 	maxDownloadRetries, err := strconv.Atoi(os.Getenv("MAX_DOWNLOAD_RETRIES"))
-	if err != nil {
-		return image_downloader.Config{}, errors.New("MAX_DOWNLOAD_RETRIES environment variable is required and must be a number")
+	if err != nil || maxDownloadRetries <= 0 {
+		return image_downloader.Config{}, errors.New("MAX_DOWNLOAD_RETRIES environment variable is required and must be a positive number")
 	}
 
 	clientTimeout, err := strconv.Atoi(os.Getenv("CLIENT_TIMEOUT"))

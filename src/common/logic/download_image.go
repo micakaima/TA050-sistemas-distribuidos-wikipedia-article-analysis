@@ -31,8 +31,14 @@ type WikiSummaryResponse struct {
 }
 
 func calculateBackoff(attempt int, articleID int) time.Duration {
-	jitter := time.Duration(articleID%1000) * time.Millisecond
-	return time.Second*time.Duration(1<<uint(attempt)) + jitter // Exponential backoff: 1s, 2s, 4s, 8s, ...
+	const (
+		maxAttempts = 10
+		baseBackoff = time.Second
+		maxJitterMs = int(time.Second / time.Millisecond)
+	)
+	minAttempt := min(attempt, maxAttempts)
+	jitter := time.Duration(articleID%maxJitterMs) * time.Millisecond
+	return (baseBackoff << minAttempt) + jitter // Exponential backoff: 1s, 2s, 4s, 8s, ...
 }
 
 func areTooManyRequests(resp *http.Response, articleID int) bool {
