@@ -19,7 +19,7 @@ const MsgCodeHeader = "mcode"
 type Message struct {
 	ClientID uint64
 	MsgCode  inner.InnerMsgCode
-	Body     string
+	Body     []byte
 }
 
 func NewMessage(clientID uint64, mcode inner.InnerMsgCode, msg generic.SerializableMessage) (*Message, error) {
@@ -27,7 +27,7 @@ func NewMessage(clientID uint64, mcode inner.InnerMsgCode, msg generic.Serializa
 	if err != nil {
 		return nil, err
 	}
-	return &Message{ClientID: clientID, MsgCode: mcode, Body: string(msgBytes)}, nil
+	return &Message{ClientID: clientID, MsgCode: mcode, Body: msgBytes}, nil
 }
 
 type Event struct {

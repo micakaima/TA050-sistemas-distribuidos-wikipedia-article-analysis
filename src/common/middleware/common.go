@@ -54,7 +54,7 @@ func (m *commonMiddleware) consume(queueName string, callbackFunc func(msg Messa
 		msg := Message{
 			ClientID: clientID,
 			MsgCode:  msgCode,
-			Body:     string(delivery.Body),
+			Body:     delivery.Body,
 		}
 		deliveryTag := delivery.DeliveryTag
 		ack := func() { _ = m.channel.Ack(deliveryTag, false) }

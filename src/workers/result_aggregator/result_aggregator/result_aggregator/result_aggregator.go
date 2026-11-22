@@ -318,7 +318,7 @@ func (w *Worker) publishQueryResult(clientID uint64, queryCode qresults.QueryRes
 	message := middleware.Message{
 		ClientID: clientID,
 		MsgCode:  messages.ResultCode,
-		Body:     string(resultBytes),
+		Body:     resultBytes,
 	}
 	if err := w.output.Send(message); err != nil {
 		return fmt.Errorf("sending query result: %w", err)
@@ -344,6 +344,6 @@ func (w *Worker) finishClientIfDone(clientID uint64, state *clientState) error {
 	return w.output.Send(middleware.Message{
 		ClientID: clientID,
 		MsgCode:  messages.EOFCode,
-		Body:     string([]byte{}),
+		Body:     []byte{},
 	})
 }

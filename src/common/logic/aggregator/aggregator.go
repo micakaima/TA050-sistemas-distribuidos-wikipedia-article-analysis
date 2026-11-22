@@ -204,7 +204,7 @@ func (w *Aggregator[T]) publishQueryResult(clientID uint64, result *qresults.Que
 	message := middleware.Message{
 		ClientID: clientID,
 		MsgCode:  messages.ResultCode,
-		Body:     string(resultBytes),
+		Body:     resultBytes,
 	}
 	if err := w.outputQueue.Send(message); err != nil {
 		return err

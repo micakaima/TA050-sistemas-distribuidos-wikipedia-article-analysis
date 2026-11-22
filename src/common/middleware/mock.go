@@ -48,11 +48,11 @@ func (m *MockMiddleware) Close() error {
 	return nil
 }
 
-func (m *MockMiddleware) SimulateIncomingMessage(body string) (acked bool, nacked bool) {
+func (m *MockMiddleware) SimulateIncomingMessage(body []byte) (acked bool, nacked bool) {
 	return m.SimulateIncomingMessageWithClientID(0, body)
 }
 
-func (m *MockMiddleware) SimulateIncomingMessageWithClientID(clientID uint64, body string) (acked bool, nacked bool) {
+func (m *MockMiddleware) SimulateIncomingMessageWithClientID(clientID uint64, body []byte) (acked bool, nacked bool) {
 	m.mu.Lock()
 	cb := m.Consumer
 	m.mu.Unlock()
