@@ -30,10 +30,10 @@ def main():
     counter_2 = Counter(file_2_text)
 
     if counter_1 == counter_2:
-        print("Results are the same!")
+        print("Results are correct!")
         sys.exit(0)
     else:
-        print("Results are NOT the same")
+        print("Results are NOT correct")
         for line in difflib.unified_diff(file_1_text, file_2_text, fromfile=str(path1), tofile=str(path2), lineterm=''):
             print(line)
         sys.exit(1)

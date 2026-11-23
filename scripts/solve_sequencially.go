@@ -234,7 +234,7 @@ func requestBytesHelper(client *http.Client, targetUrl string, maxRetries int, u
 		}
 
 		if statusCode == http.StatusNotFound {
-			return nil, statusCode, nil
+			return nil, statusCode, fmt.Errorf(download.ExternalAPIError, download.Error404Error)
 		}
 
 		if statusCode == http.StatusTooManyRequests {
@@ -265,15 +265,18 @@ func fetchCandidateImage(client *http.Client, cand *messages.ImageCandidate, max
 	}
 
 	if cand.ImageURL == "" {
-		return nil, download.ExternalAPIError
+		return nil, fmt.Errorf(download.ExternalAPIError, download.MissingImageURLError).Error()
 	}
 
 	body, status, err := requestBytesHelper(client, cand.ImageURL, maxRetries, userAgent, id)
 	if status == http.StatusOK && err == nil && len(body) > 0 {
 		return body, ""
 	}
+	if err != nil && status == http.StatusNotFound {
+		return nil, err.Error()
+	}
 
-	return nil, download.ExternalAPIError
+	return nil, fmt.Errorf(download.ExternalAPIError, download.FailedAllAttemptsError).Error()
 }
 
 func obtainBio2020Articles(records []record.Record) ([]qresult.ImageArticle, error) {

@@ -1,7 +1,6 @@
 package logic
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,8 +14,11 @@ import (
 )
 
 const (
-	ExternalAPIError    = "External API error: could not retrieve image"
-	InternalErrorPrefix = "Internal error: "
+	ExternalAPIError       string = "External API error: %s"
+	InternalErrorPrefix    string = "Internal error: "
+	Error404Error          string = "Status Not Found (Error 404)"
+	FailedAllAttemptsError string = "Failed all attempts for download"
+	MissingImageURLError   string = "Missing Image URL Error"
 )
 
 type WikiSummaryResponse struct {
@@ -78,7 +80,7 @@ func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAge
 
 		if resp.StatusCode == http.StatusNotFound {
 			slog.Info("Resource not found", "status", resp.StatusCode, "article_id", articleID)
-			return nil, errors.New(ExternalAPIError)
+			return nil, fmt.Errorf(ExternalAPIError, Error404Error)
 		}
 
 		slog.Warn("HTTP request failed", "status", resp.StatusCode, "attempt", attempt+1, "err", err)
@@ -90,7 +92,7 @@ func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAge
 		slog.Error("HTTP request failed after all retries", "status", resp.StatusCode, "err", err)
 		break
 	}
-	return nil, errors.New(ExternalAPIError)
+	return nil, fmt.Errorf(ExternalAPIError, FailedAllAttemptsError)
 }
 
 func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries int, clientTimeout int, userAgent string) qresults.Q2Result {
@@ -119,7 +121,8 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 
 		if r.ImageURL == "" {
 			slog.Info("Missing ImageURL for article", "article_id", r.ArticleID, "name", r.Name)
-			result.Error = ExternalAPIError
+			errorStr := fmt.Errorf(ExternalAPIError, MissingImageURLError).Error()
+			result.Error = errorStr
 			results.Add(result)
 			continue
 		}
@@ -127,7 +130,7 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 		imageBytes, err := requestBytes(client, r.ImageURL, maxRetries, userAgent, id)
 		if err != nil {
 			slog.Warn("Failed to download image from ImageURL", "article_id", r.ArticleID, "name", r.Name, "err", err)
-			result.Error = ExternalAPIError
+			result.Error = err.Error()
 			results.Add(result)
 			continue
 		}
