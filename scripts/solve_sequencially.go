@@ -214,6 +214,16 @@ const (
 	MAX_CONCURRENT_IMAGE_DOWNLOADS = 3
 )
 
+func getImageStorageDir() string {
+	if dir := os.Getenv("IMAGE_STORAGE_DIR"); dir != "" {
+		return dir
+	}
+	if _, err := os.Stat("data/storage/images"); err == nil {
+		return "data/storage/images"
+	}
+	return IMAGE_CACHE_DIR
+}
+
 type WikiSummaryResponse struct {
 	Thumbnail *struct {
 		Source string `json:"source"`
@@ -369,9 +379,11 @@ func obtainBio2020Articles(records []record.Record) ([]qresult.ImageArticle, err
 	cacheHits := 0
 	toDownload := 0
 
+	storageDir := getImageStorageDir()
+
 	for i, cand := range candidates {
-		imgPath := filepath.Join(IMAGE_CACHE_DIR, fmt.Sprintf("%s.img", cand.ArticleID))
-		noimgPath := filepath.Join(IMAGE_CACHE_DIR, fmt.Sprintf("%s.noimage", cand.ArticleID))
+		imgPath := filepath.Join(storageDir, fmt.Sprintf("%s.img", cand.ArticleID))
+		noimgPath := filepath.Join(storageDir, fmt.Sprintf("%s.noimage", cand.ArticleID))
 
 		// 1. Imagen exitosa en caché
 		if imgData, err := os.ReadFile(imgPath); err == nil && len(imgData) > 0 {

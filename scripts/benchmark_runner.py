@@ -203,6 +203,21 @@ def wait_for_cluster_ready(compose_file, timeout=60):
         print("[!] Advertencia: Timeout esperando bindings de column_filter. Se continuará con los clientes...")
         return False
 
+    # 3. Esperar que los image_downloader hayan preparado su storage y estén healthy
+    downloaders_ready = False
+    while time.time() - start < timeout:
+        res = subprocess.run(
+            ["docker", "inspect", "--format", "{{.State.Health.Status}}", "image_downloader_0"],
+            capture_output=True, text=True
+        )
+        if res.returncode == 0 and res.stdout.strip() == "healthy":
+            downloaders_ready = True
+            break
+        time.sleep(0.5)
+
+    if not downloaders_ready:
+        print("[!] Advertencia: Timeout esperando healthcheck de image_downloader. Se continuará...")
+
     print(f"[+] Clúster distribuido listo y workers suscritos en {time.time() - start:.1f} s.")
     return True
 
