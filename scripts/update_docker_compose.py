@@ -125,14 +125,14 @@ def generate_english_filter_containers(docker_compose):
 def generate_bio_filter_containers(docker_compose):
     for i in range(CANT_BIO_FILTERS):
         container_name = f"bio_filter_{i}"
-        depends_dict = {f"image_downloader_{j}": {"condition": "service_healthy"} for j in range(CANT_IMAGE_DOWNLOADERS)}
+        depends_list = [f"image_downloader_{j}" for j in range(CANT_IMAGE_DOWNLOADERS)]
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",
                 "dockerfile": "src/workers/bio_filter/Dockerfile",
             },
             "container_name": container_name,
-            "depends_on": depends_dict,
+            "depends_on": depends_list,
             "environment": [
                 f"ID={i}",
                 "MOM_HOST=rabbitmq",
@@ -166,17 +166,6 @@ def generate_image_downloader_containers(docker_compose):
                 f"MAX_DOWNLOAD_RETRIES={MAX_DOWNLOAD_RETRIES}",
                 f"CLIENT_TIMEOUT={CLIENT_TIMEOUT}",
                 f"USER_AGENT={USER_AGENT}_{i}",
-                "IMAGE_STORAGE_DIR=/data/storage/images",
-            ],
-            "healthcheck": {
-                "test": ["CMD-SHELL", "test -f /tmp/healthy || exit 1"],
-                "interval": "2s",
-                "timeout": "2s",
-                "retries": 10,
-                "start_period": "3s",
-            },
-            "volumes": [
-                "./data/storage/images:/data/storage/images:rw",
             ]
         }
 
