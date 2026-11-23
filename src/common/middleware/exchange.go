@@ -13,11 +13,20 @@ type exchangeMiddleware struct {
 }
 
 func (m *exchangeMiddleware) StartConsuming(callbackFunc func(msg Message, ack func(), nack func())) error {
-	anonymousQueue, err := m.channel.QueueDeclare(
-		"",    // nombre vacío, genera uno aleatorio exclusivo
+	queueName := ""
+	autoDelete := true
+	exclusive := true
+	if len(m.keys) == 1 {
+		queueName = m.keys[0]
+		autoDelete = false
+		exclusive = false
+	}
+
+	queue, err := m.channel.QueueDeclare(
+		queueName,
 		false, // durable
-		true,  // autoDelete
-		true,  // exclusive
+		autoDelete,
+		exclusive,
 		false, // noWait
 		nil,
 	)
@@ -27,7 +36,7 @@ func (m *exchangeMiddleware) StartConsuming(callbackFunc func(msg Message, ack f
 
 	for _, key := range m.keys {
 		err = m.channel.QueueBind(
-			anonymousQueue.Name,
+			queue.Name,
 			key,
 			m.exchange,
 			false,
@@ -38,7 +47,7 @@ func (m *exchangeMiddleware) StartConsuming(callbackFunc func(msg Message, ack f
 		}
 	}
 
-	return m.consume(anonymousQueue.Name, callbackFunc)
+	return m.consume(queue.Name, callbackFunc)
 }
 
 func (m *exchangeMiddleware) Send(msg Message) error {
