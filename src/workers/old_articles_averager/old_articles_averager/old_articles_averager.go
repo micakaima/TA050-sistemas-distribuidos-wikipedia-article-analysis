@@ -141,9 +141,11 @@ func (w *OldArticlesAveragerWorker) handleEOF(msg middleware.Message) error {
 		slog.Debug("While creating Old Average message", "err", err)
 		return err
 	}
-	if err := w.sendToAboveAverageFilter(msg.ClientID, *averageMsg); err != nil {
-		slog.Debug("While sending Old Average message", "err", err)
-		return err
+	for n := 0; n < w.aboveAverageFilterAmount; n++ {
+		if err := w.sendToAboveAverageFilter(*averageMsg, n); err != nil {
+			slog.Debug("While sending Old Average message", "err", err)
+			return err
+		}
 	}
 
 	delete(w.clientStates, msg.ClientID)
@@ -166,11 +168,9 @@ func (w *OldArticlesAveragerWorker) calculateAverage(clientID uint64) float64 {
 	return float64(clientState.totalWords) / float64(clientState.totalCount)
 }
 
-func (w *OldArticlesAveragerWorker) sendToAboveAverageFilter(clientID uint64, msg middleware.Message) error {
-	targetNode := utils.GetTargetNode(clientID, w.aboveAverageFilterAmount)
+func (w *OldArticlesAveragerWorker) sendToAboveAverageFilter(msg middleware.Message, targetNode int) error {
 	routingKey := utils.GenerateRoutingKey(w.aboveAverageFilterPrefix, targetNode)
 	if err := w.outputExchange.SendToKey(msg, routingKey); err != nil {
-		slog.Debug("While sending New Articles Word Count Batch message", "err", err)
 		return err
 	}
 	return nil

@@ -306,6 +306,8 @@ def generate_result_aggregators(docker_compose):
             environment_vars.append(f"SHARED_WORDS_AGGREGATOR_AMOUNT={CANT_SHARED_WORDS_AGGREGATORS}")
         elif i == 4:
             environment_vars.append(f"PARTIAL_TOP_AGGREGATOR_AMOUNT={CANT_PARTIAL_TOP_AGGREGATORS}")
+        elif i == 5:
+            environment_vars.append(f"ABOVE_AVERAGE_FILTER_AMOUNT={CANT_ABOVE_AVERAGE_FILTERS}")
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",

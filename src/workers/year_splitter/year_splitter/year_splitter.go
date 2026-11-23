@@ -145,21 +145,12 @@ func (w *YearSplitterWorker) handleWordCount(msg middleware.Message) error {
 	}
 	oldArticlesCount, newArticlesCount := splitByYear(*wordCountBatch)
 
-	oldArticlesMsg, err := middleware.NewMessage(msg.ClientID, messages.OldArticleCountCode, &oldArticlesCount)
-	if err != nil {
-		slog.Debug("While creating Old Articles Word Count Batch message", "err", err)
+	if err := w.sendOldArticlesCount(msg.ClientID, oldArticlesCount); err != nil {
+		slog.Debug("While sending Old Articles Word Count Batch message", "err", err)
 		return err
 	}
-	if err := w.sendToOldAverager(msg.ClientID, *oldArticlesMsg); err != nil {
-		return err
-	}
-
-	newArticlesMsg, err := middleware.NewMessage(msg.ClientID, messages.NewArticleCountCode, &newArticlesCount)
-	if err != nil {
-		slog.Debug("While creating New Articles Word Count Batch message", "err", err)
-		return err
-	}
-	if err := w.sendToAboveAverageFilter(msg.ClientID, *newArticlesMsg); err != nil {
+	if err := w.sendNewArticlesCounts(msg.ClientID, newArticlesCount); err != nil {
+		slog.Debug("While sending New Articles Word Count Batch message", "err", err)
 		return err
 	}
 
@@ -185,9 +176,11 @@ func (w *YearSplitterWorker) handleEOF(msg middleware.Message) error {
 		slog.Debug("While sending EOF message", "err", err)
 		return err
 	}
-	if err := w.sendToAboveAverageFilter(msg.ClientID, *eofMessage); err != nil {
-		slog.Debug("While sending EOF message", "err", err)
-		return err
+
+	for n := 0; n < w.aboveAverageFilterAmount; n++ {
+		if err := w.sendToAboveAverageFilter(*eofMessage, n); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -218,18 +211,50 @@ func (w *YearSplitterWorker) sendToOldAverager(clientID uint64, msg middleware.M
 	targetNode := utils.GetTargetNode(clientID, w.oldArticlesAveragerAmount)
 	routingKey := utils.GenerateRoutingKey(w.oldArticlesAveragerPrefix, targetNode)
 	if err := w.outputExchangeOld.SendToKey(msg, routingKey); err != nil {
-		slog.Debug("While sending Old Articles Word Count Batch message", "err", err)
 		return err
 	}
 	return nil
 }
 
-func (w *YearSplitterWorker) sendToAboveAverageFilter(clientID uint64, msg middleware.Message) error {
-	targetNode := utils.GetTargetNode(clientID, w.aboveAverageFilterAmount)
+func (w *YearSplitterWorker) sendToAboveAverageFilter(msg middleware.Message, targetNode int) error {
 	routingKey := utils.GenerateRoutingKey(w.aboveAverageFilterPrefix, targetNode)
 	if err := w.outputExchangeNew.SendToKey(msg, routingKey); err != nil {
-		slog.Debug("While sending New Articles Word Count Batch message", "err", err)
 		return err
+	}
+	return nil
+}
+
+func (w *YearSplitterWorker) sendOldArticlesCount(clientID uint64, oldArticlesCount generic.Batch[*messages.OldArticleWordCount]) error {
+	oldArticlesMsg, err := middleware.NewMessage(clientID, messages.OldArticleCountCode, &oldArticlesCount)
+	if err != nil {
+		slog.Debug("While creating Old Articles Word Count Batch message", "err", err)
+		return err
+	}
+	if err := w.sendToOldAverager(clientID, *oldArticlesMsg); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *YearSplitterWorker) sendNewArticlesCounts(clientID uint64, newArticlesCounts generic.Batch[*messages.NewArticleWordCount]) error {
+	articlesByNode := make(map[int]generic.Batch[*messages.NewArticleWordCount])
+	for _, item := range newArticlesCounts.Items {
+		targetNode := utils.GetTargetNodeByArticleID(item.ArticleID, w.aboveAverageFilterAmount)
+		b, exists := articlesByNode[targetNode]
+		if !exists {
+			b = messages.NewEmptyNewArticleWordCountBatch(0)
+		}
+		b.Add(item)
+		articlesByNode[targetNode] = b
+	}
+	for node, b := range articlesByNode {
+		msg, err := middleware.NewMessage(clientID, messages.NewArticleCountCode, &b)
+		if err != nil {
+			return err
+		}
+		if err := w.sendToAboveAverageFilter(*msg, node); err != nil {
+			return err
+		}
 	}
 	return nil
 }

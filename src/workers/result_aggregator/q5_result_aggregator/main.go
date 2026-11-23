@@ -37,6 +37,13 @@ func loadConfig() (aggregator.Config[*qresults.AboveAverageArticle], error) {
 		return aggregator.Config[*qresults.AboveAverageArticle]{}, errors.New("STORAGE_DIR environment variable is required")
 	}
 
+	expectedEOFs := 1
+	if amountStr := os.Getenv("ABOVE_AVERAGE_FILTER_AMOUNT"); amountStr != "" {
+		if val, err := strconv.Atoi(amountStr); err == nil && val > 0 {
+			expectedEOFs = val
+		}
+	}
+
 	return aggregator.Config[*qresults.AboveAverageArticle]{
 		MomHost:         momHost,
 		MomPort:         momPort,
@@ -46,6 +53,7 @@ func loadConfig() (aggregator.Config[*qresults.AboveAverageArticle], error) {
 		StorageName:     "q5",
 		QueryCode:       qresults.Q5Code,
 		ExpectedMsgCode: messages.Q5ResultCode,
+		ExpectedEOFs:    expectedEOFs,
 		Handler:         &qresults.Q5Result{},
 	}, nil
 }
