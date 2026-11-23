@@ -17,7 +17,7 @@ import urllib.request
 import urllib.error
 import pyarrow.parquet as pq
 
-USER_AGENT = "Wikipedia-Article-Analysis/1.0 (academic-testing; fiuba-distribuidos)"
+USER_AGENT = "Wikipedia-Article-Analysis/1.0"
 EXTERNAL_API_ERROR = "External API error: could not retrieve image"
 
 def parse_args():

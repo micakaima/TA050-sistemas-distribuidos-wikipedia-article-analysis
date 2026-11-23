@@ -1,15 +1,12 @@
 package logic
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	generic "TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/message_protocol/generic"
@@ -120,66 +117,16 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 			continue
 		}
 
-		// 1. Descargar con Image URL directa si está disponible
-		if r.ImageURL != "" {
-			imageBytes, err := requestBytes(client, r.ImageURL, maxRetries, userAgent, id)
-			if err == nil {
-				result.ImageBytes = imageBytes
-				result.Error = ""
-				results.Add(result)
-				continue
-			}
-			slog.Warn("Failed to download image from provided URL, falling back to Wikipedia API", "article_id", r.ArticleID, "name", r.Name, "err", err)
-		}
-
-		// 2. Descargar con Article URL vía API REST de Wikipedia
-		slog.Info("Using Wikipedia API to get image", "article_id", r.ArticleID, "name", r.Name)
-
-		splittedURL := strings.Split(r.URL, "/wiki/")
-		if len(splittedURL) != 2 {
-			slog.Error("Invalid URL format for article", "article_id", r.ArticleID, "name", r.Name, "url", r.URL)
-			result.Error = InternalErrorPrefix
-			results.Add(result)
-			continue
-		}
-		title := splittedURL[1]
-
-		language := "en"
-		if strings.Contains(r.URL, ".fr.wikipedia.org") {
-			language = "fr"
-		}
-
-		apiURL := fmt.Sprintf("https://%s.wikipedia.org/api/rest_v1/page/summary/%s", language, url.PathEscape(title))
-
-		bodyBytes, err := requestBytes(client, apiURL, maxRetries, userAgent, id)
-		if err != nil {
-			result.ImageBytes = nil
+		if r.ImageURL == "" {
+			slog.Info("Missing ImageURL for article", "article_id", r.ArticleID, "name", r.Name)
 			result.Error = ExternalAPIError
 			results.Add(result)
 			continue
 		}
 
-		var summary WikiSummaryResponse
-		if err := json.Unmarshal(bodyBytes, &summary); err != nil {
-			slog.Error("Failed to unmarshal JSON response", "article_id", r.ArticleID, "name", r.Name, "err", err)
-			result.Error = InternalErrorPrefix
-			results.Add(result)
-			continue
-		}
-
-		// Caso: Wikipedia confirmó exitosamente que el artículo NO tiene thumbnail
-		if summary.Thumbnail == nil || summary.Thumbnail.Source == "" {
-			slog.Info("No thumbnail found for article in Wikipedia", "article_id", r.ArticleID, "name", r.Name)
-			result.ImageBytes = nil
-			result.Error = ExternalAPIError
-			results.Add(result)
-			continue
-		}
-
-		// Descargar thumbnail
-		imageBytes, err := requestBytes(client, summary.Thumbnail.Source, maxRetries, userAgent, id)
+		imageBytes, err := requestBytes(client, r.ImageURL, maxRetries, userAgent, id)
 		if err != nil {
-			result.ImageBytes = nil
+			slog.Warn("Failed to download image from ImageURL", "article_id", r.ArticleID, "name", r.Name, "err", err)
 			result.Error = ExternalAPIError
 			results.Add(result)
 			continue
