@@ -1,16 +1,16 @@
 import yaml
 
 CANT_CLIENTS = 3
-CANT_COLUMN_FILTERS = 2
-CANT_VOCABULARY_EXTRACTORS = 2
-CANT_YEAR_FILTERS = 2
-CANT_ENGLISH_FILTERS = 2
-CANT_BIO_FILTERS = 2
-CANT_IMAGE_DOWNLOADERS = 2
-CANT_OLD_ARTICLES_AVERAGERS = 2
-CANT_ABOVE_AVERAGE_FILTERS = 2
-CANT_SHARED_WORDS_AGGREGATORS = 2
-CANT_PARTIAL_TOP_AGGREGATORS = 2
+CANT_COLUMN_FILTERS = 4
+CANT_VOCABULARY_EXTRACTORS = 4
+CANT_YEAR_FILTERS = 4
+CANT_ENGLISH_FILTERS = 4
+CANT_BIO_FILTERS = 4
+CANT_IMAGE_DOWNLOADERS = 4
+CANT_OLD_ARTICLES_AVERAGERS = 4
+CANT_ABOVE_AVERAGE_FILTERS = 4
+CANT_SHARED_WORDS_AGGREGATORS = 4
+CANT_PARTIAL_TOP_AGGREGATORS = 4
 
 CONNECTION_ATTEMPS=10
 CONNECTION_ATTEMPTS_DELAY_MS=1000
@@ -125,14 +125,14 @@ def generate_english_filter_containers(docker_compose):
 def generate_bio_filter_containers(docker_compose):
     for i in range(CANT_BIO_FILTERS):
         container_name = f"bio_filter_{i}"
-        depends_list = [f"image_downloader_{j}" for j in range(CANT_IMAGE_DOWNLOADERS)]
+        depends_dict = {f"image_downloader_{j}": {"condition": "service_healthy"} for j in range(CANT_IMAGE_DOWNLOADERS)}
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",
                 "dockerfile": "src/workers/bio_filter/Dockerfile",
             },
             "container_name": container_name,
-            "depends_on": depends_list,
+            "depends_on": depends_dict,
             "environment": [
                 f"ID={i}",
                 "MOM_HOST=rabbitmq",
@@ -166,10 +166,17 @@ def generate_image_downloader_containers(docker_compose):
                 f"MAX_DOWNLOAD_RETRIES={MAX_DOWNLOAD_RETRIES}",
                 f"CLIENT_TIMEOUT={CLIENT_TIMEOUT}",
                 f"USER_AGENT={USER_AGENT}_{i}",
-                "IMAGE_CACHE_DIR=/data/cache/images",
+                "IMAGE_STORAGE_DIR=/data/storage/images",
             ],
+            "healthcheck": {
+                "test": ["CMD-SHELL", "test -f /tmp/healthy || exit 1"],
+                "interval": "2s",
+                "timeout": "2s",
+                "retries": 10,
+                "start_period": "3s",
+            },
             "volumes": [
-                "./data/cache/images:/data/cache/images:ro",
+                "./data/storage/images:/data/storage/images:rw",
             ]
         }
 
