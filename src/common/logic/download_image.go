@@ -98,7 +98,46 @@ func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAge
 	return nil, errors.New(ExternalAPIError)
 }
 
-func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries int, clientTimeout int, userAgent string, cacheDir string) qresults.Q2Result {
+func checkFallback(storageDir string, articleID string) ([]byte, string, bool) {
+	if storageDir == "" {
+		return nil, ExternalAPIError, false
+	}
+	imgPath := filepath.Join(storageDir, fmt.Sprintf("%s.img", articleID))
+	if imgBytes, err := os.ReadFile(imgPath); err == nil && len(imgBytes) > 0 {
+		slog.Warn("Wikipedia API failed, using fallback image from storage", "article_id", articleID)
+		return imgBytes, "", true
+	}
+	noimgPath := filepath.Join(storageDir, fmt.Sprintf("%s.noimage", articleID))
+	if _, err := os.Stat(noimgPath); err == nil {
+		slog.Warn("Wikipedia API failed, confirmed no image from fallback storage", "article_id", articleID)
+		return nil, ExternalAPIError, true
+	}
+	return nil, ExternalAPIError, false
+}
+
+func saveToStorage(storageDir string, articleID string, imgBytes []byte) {
+	if storageDir == "" {
+		return
+	}
+	if err := os.MkdirAll(storageDir, 0o755); err != nil {
+		return
+	}
+	if len(imgBytes) > 0 {
+		imgPath := filepath.Join(storageDir, fmt.Sprintf("%s.img", articleID))
+		tmpPath := fmt.Sprintf("%s.tmp.%d", imgPath, time.Now().UnixNano())
+		if err := os.WriteFile(tmpPath, imgBytes, 0o644); err == nil {
+			_ = os.Rename(tmpPath, imgPath)
+		}
+	} else {
+		noimgPath := filepath.Join(storageDir, fmt.Sprintf("%s.noimage", articleID))
+		tmpPath := fmt.Sprintf("%s.tmp.%d", noimgPath, time.Now().UnixNano())
+		if err := os.WriteFile(tmpPath, []byte(ExternalAPIError), 0o644); err == nil {
+			_ = os.Rename(tmpPath, noimgPath)
+		}
+	}
+}
+
+func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries int, clientTimeout int, userAgent string, storageDir string) qresults.Q2Result {
 	client := &http.Client{Timeout: time.Duration(clientTimeout) * time.Second}
 	results := qresults.NewEmptyImageArticleBatch(0)
 
@@ -122,40 +161,20 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 			continue
 		}
 
-		// Revisar caché de imágenes en modo solo lectura
-		if cacheDir != "" {
-			imgPath := filepath.Join(cacheDir, fmt.Sprintf("%s.img", r.ArticleID))
-			if imgBytes, err := os.ReadFile(imgPath); err == nil && len(imgBytes) > 0 {
-				slog.Info("Image retrieved from cache", "article_id", r.ArticleID, "name", r.Name)
-				result.ImageBytes = imgBytes
-				result.Error = ""
-				results.Add(result)
-				continue
-			}
-
-			noimgPath := filepath.Join(cacheDir, fmt.Sprintf("%s.noimage", r.ArticleID))
-			if _, err := os.Stat(noimgPath); err == nil {
-				slog.Info("Image confirmed absent in cache (noimage)", "article_id", r.ArticleID, "name", r.Name)
-				result.ImageBytes = nil
-				result.Error = ExternalAPIError
-				results.Add(result)
-				continue
-			}
-		}
-
-		// Descargar con Image URL si está disponible
+		// 1. Descargar con Image URL directa si está disponible (API Primero)
 		if r.ImageURL != "" {
 			imageBytes, err := requestBytes(client, r.ImageURL, maxRetries, userAgent, id)
 			if err == nil {
 				result.ImageBytes = imageBytes
 				result.Error = ""
+				saveToStorage(storageDir, r.ArticleID, imageBytes)
 				results.Add(result)
 				continue
 			}
 			slog.Warn("Failed to download image from provided URL, falling back to Wikipedia API", "article_id", r.ArticleID, "name", r.Name, "err", err)
 		}
 
-		// Descargar con Article URL
+		// 2. Descargar con Article URL vía API REST de Wikipedia (API Primero)
 		slog.Info("Using Wikipedia API to get image", "article_id", r.ArticleID, "name", r.Name)
 
 		splittedURL := strings.Split(r.URL, "/wiki/")
@@ -176,13 +195,20 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 
 		bodyBytes, err := requestBytes(client, apiURL, maxRetries, userAgent, id)
 		if err != nil {
-			result.Error = err.Error()
+			// Fallo de red / API: Recurrir a Fallback Storage
+			imgBytes, errStr, found := checkFallback(storageDir, r.ArticleID)
+			if found {
+				result.ImageBytes = imgBytes
+				result.Error = errStr
+			} else {
+				result.ImageBytes = nil
+				result.Error = ExternalAPIError
+			}
 			results.Add(result)
 			continue
 		}
 
 		var summary WikiSummaryResponse
-
 		if err := json.Unmarshal(bodyBytes, &summary); err != nil {
 			slog.Error("Failed to unmarshal JSON response", "article_id", r.ArticleID, "name", r.Name, "err", err)
 			result.Error = InternalErrorPrefix
@@ -190,22 +216,35 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 			continue
 		}
 
+		// Caso: Wikipedia confirmó exitosamente que el artículo NO tiene thumbnail
 		if summary.Thumbnail == nil || summary.Thumbnail.Source == "" {
-			slog.Info("No thumbnail found for article", "article_id", r.ArticleID, "name", r.Name)
+			slog.Info("No thumbnail found for article in Wikipedia", "article_id", r.ArticleID, "name", r.Name)
+			result.ImageBytes = nil
 			result.Error = ExternalAPIError
+			saveToStorage(storageDir, r.ArticleID, nil) // Marca .noimage
 			results.Add(result)
 			continue
 		}
 
+		// Descargar thumbnail
 		imageBytes, err := requestBytes(client, summary.Thumbnail.Source, maxRetries, userAgent, id)
 		if err != nil {
-			result.Error = err.Error()
+			// Fallo al descargar imagen: Recurrir a Fallback Storage
+			imgBytes, errStr, found := checkFallback(storageDir, r.ArticleID)
+			if found {
+				result.ImageBytes = imgBytes
+				result.Error = errStr
+			} else {
+				result.ImageBytes = nil
+				result.Error = ExternalAPIError
+			}
 			results.Add(result)
 			continue
 		}
 
 		result.ImageBytes = imageBytes
 		result.Error = ""
+		saveToStorage(storageDir, r.ArticleID, imageBytes)
 		results.Add(result)
 	}
 	return qresults.Q2Result{ResultArticles: results}
