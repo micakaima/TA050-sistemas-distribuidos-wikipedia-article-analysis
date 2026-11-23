@@ -70,11 +70,11 @@ services:
     environment:
     - SERVER_HOST=gateway
     - SERVER_PORT=5678
-    - OUTPUT_QUEUE=results_queue
+    - OUTPUT_QUEUE=results
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
     - COLUMN_FILTER_AMOUNT=2
-    - COLUMN_FILTER_PREFIX=column_filter
+    - COLUMN_FILTER_PREFIX=raw_articles
   rabbitmq:
     build:
       context: ./src/rabbitmq
@@ -106,11 +106,11 @@ services:
     - ID=0
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - COLUMN_FILTER_PREFIX=column_filter
+    - COLUMN_FILTER_PREFIX=raw_articles
     - YEAR_FILTER_AMOUNT=2
-    - YEAR_FILTER_PREFIX=year_filter
+    - YEAR_FILTER_PREFIX=2020_candidates
     - VOCABULARY_EXTRACTOR_AMOUNT=2
-    - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
+    - VOCABULARY_EXTRACTOR_PREFIX=raw_abstracts
   column_filter_1:
     build:
       context: .
@@ -125,11 +125,11 @@ services:
     - ID=1
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - COLUMN_FILTER_PREFIX=column_filter
+    - COLUMN_FILTER_PREFIX=raw_articles
     - YEAR_FILTER_AMOUNT=2
-    - YEAR_FILTER_PREFIX=year_filter
+    - YEAR_FILTER_PREFIX=2020_candidates
     - VOCABULARY_EXTRACTOR_AMOUNT=2
-    - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
+    - VOCABULARY_EXTRACTOR_PREFIX=raw_abstracts
   vocabulary_extractor_0:
     build:
       context: .
@@ -145,12 +145,12 @@ services:
     - ID=0
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
-    - OUTPUT_QUEUE=year_splitter_queue
+    - VOCABULARY_EXTRACTOR_PREFIX=raw_abstracts
+    - OUTPUT_QUEUE=word_count
     - SHARED_WORDS_AGGREGATOR_AMOUNT=2
-    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
+    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_candidates
     - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
-    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
+    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_candidates
     - COLUMN_FILTER_AMOUNT=2
   vocabulary_extractor_1:
     build:
@@ -167,12 +167,12 @@ services:
     - ID=1
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor
-    - OUTPUT_QUEUE=year_splitter_queue
+    - VOCABULARY_EXTRACTOR_PREFIX=raw_abstracts
+    - OUTPUT_QUEUE=word_count
     - SHARED_WORDS_AGGREGATOR_AMOUNT=2
-    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
+    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_candidates
     - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
-    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
+    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_candidates
     - COLUMN_FILTER_AMOUNT=2
   shared_words_aggregator_0:
     build:
@@ -183,8 +183,8 @@ services:
     - q3_aggregator
     environment:
     - ID=0
-    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
-    - OUTPUT_QUEUE=q3_results_queue
+    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_candidates
+    - OUTPUT_QUEUE=q3_results
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
     - VOCABULARY_EXTRACTOR_AMOUNT=2
@@ -197,8 +197,8 @@ services:
     - q3_aggregator
     environment:
     - ID=1
-    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator
-    - OUTPUT_QUEUE=q3_results_queue
+    - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_candidates
+    - OUTPUT_QUEUE=q3_results
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
     - VOCABULARY_EXTRACTOR_AMOUNT=2
@@ -219,7 +219,7 @@ services:
     - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - INPUT_QUEUE=year_splitter_queue
+    - INPUT_QUEUE=word_count
     - VOCABULARY_EXTRACTOR_AMOUNT=2
   old_articles_averager_0:
     build:
@@ -264,7 +264,7 @@ services:
     - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - OUTPUT_QUEUE=q5_results_queue
+    - OUTPUT_QUEUE=q5_results
     - BATCH_SIZE=1000
   above_average_filter_1:
     build:
@@ -279,7 +279,7 @@ services:
     - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - OUTPUT_QUEUE=q5_results_queue
+    - OUTPUT_QUEUE=q5_results
     - BATCH_SIZE=1000
   year_filter_0:
     build:
@@ -295,11 +295,11 @@ services:
     - ID=0
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - YEAR_FILTER_PREFIX=year_filter
+    - YEAR_FILTER_PREFIX=2020_candidates
     - ENGLISH_FILTER_AMOUNT=2
-    - ENGLISH_FILTER_PREFIX=english_filter
+    - ENGLISH_FILTER_PREFIX=en_candidates
     - BIO_FILTER_AMOUNT=2
-    - BIO_FILTER_PREFIX=bio_filter
+    - BIO_FILTER_PREFIX=bio_candidates
     - YEAR=2020
     - COLUMN_FILTER_AMOUNT=2
   year_filter_1:
@@ -316,11 +316,11 @@ services:
     - ID=1
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - YEAR_FILTER_PREFIX=year_filter
+    - YEAR_FILTER_PREFIX=2020_candidates
     - ENGLISH_FILTER_AMOUNT=2
-    - ENGLISH_FILTER_PREFIX=english_filter
+    - ENGLISH_FILTER_PREFIX=en_candidates
     - BIO_FILTER_AMOUNT=2
-    - BIO_FILTER_PREFIX=bio_filter
+    - BIO_FILTER_PREFIX=bio_candidates
     - YEAR=2020
     - COLUMN_FILTER_AMOUNT=2
   english_filter_0:
@@ -334,8 +334,8 @@ services:
     - ID=0
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - ENGLISH_FILTER_PREFIX=english_filter
-    - OUTPUT_QUEUE=q1_results_queue
+    - ENGLISH_FILTER_PREFIX=en_candidates
+    - OUTPUT_QUEUE=q1_results
     - YEAR_FILTER_AMOUNT=2
   english_filter_1:
     build:
@@ -348,8 +348,8 @@ services:
     - ID=1
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - ENGLISH_FILTER_PREFIX=english_filter
-    - OUTPUT_QUEUE=q1_results_queue
+    - ENGLISH_FILTER_PREFIX=en_candidates
+    - OUTPUT_QUEUE=q1_results
     - YEAR_FILTER_AMOUNT=2
   bio_filter_0:
     build:
@@ -365,9 +365,9 @@ services:
     - ID=0
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - BIO_FILTER_PREFIX=bio_filter
+    - BIO_FILTER_PREFIX=bio_candidates
     - IMAGE_DOWNLOADER_AMOUNT=2
-    - IMAGE_DOWNLOADER_PREFIX=image_downloader
+    - IMAGE_DOWNLOADER_PREFIX=biography_metadata
     - YEAR_FILTER_AMOUNT=2
   bio_filter_1:
     build:
@@ -383,9 +383,9 @@ services:
     - ID=1
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - BIO_FILTER_PREFIX=bio_filter
+    - BIO_FILTER_PREFIX=bio_candidates
     - IMAGE_DOWNLOADER_AMOUNT=2
-    - IMAGE_DOWNLOADER_PREFIX=image_downloader
+    - IMAGE_DOWNLOADER_PREFIX=biography_metadata
     - YEAR_FILTER_AMOUNT=2
   image_downloader_0:
     build:
@@ -398,15 +398,17 @@ services:
     - ID=0
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - IMAGE_DOWNLOADER_PREFIX=image_downloader
-    - OUTPUT_QUEUE=q2_results_queue
+    - IMAGE_DOWNLOADER_PREFIX=biography_metadata
+    - OUTPUT_QUEUE=q2_results
     - BIO_FILTER_AMOUNT=2
     - MAX_DOWNLOAD_RETRIES=3
     - CLIENT_TIMEOUT=10
     - USER_AGENT=Wikipedia-Article-Analysis/1.0_0
     - IMAGE_STORAGE_DIR=/data/storage/images
     healthcheck:
-      test: ["CMD-SHELL", "test -f /tmp/healthy || exit 1"]
+      test:
+      - CMD-SHELL
+      - test -f /tmp/healthy || exit 1
       interval: 2s
       timeout: 2s
       retries: 10
@@ -424,15 +426,17 @@ services:
     - ID=1
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - IMAGE_DOWNLOADER_PREFIX=image_downloader
-    - OUTPUT_QUEUE=q2_results_queue
+    - IMAGE_DOWNLOADER_PREFIX=biography_metadata
+    - OUTPUT_QUEUE=q2_results
     - BIO_FILTER_AMOUNT=2
     - MAX_DOWNLOAD_RETRIES=3
     - CLIENT_TIMEOUT=10
     - USER_AGENT=Wikipedia-Article-Analysis/1.0_1
     - IMAGE_STORAGE_DIR=/data/storage/images
     healthcheck:
-      test: ["CMD-SHELL", "test -f /tmp/healthy || exit 1"]
+      test:
+      - CMD-SHELL
+      - test -f /tmp/healthy || exit 1
       interval: 2s
       timeout: 2s
       retries: 10
@@ -448,8 +452,8 @@ services:
     - q4_aggregator
     environment:
     - ID=0
-    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
-    - OUTPUT_QUEUE=q4_results_queue
+    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_candidates
+    - OUTPUT_QUEUE=final_top_candidates
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
     - VOCABULARY_EXTRACTOR_AMOUNT=2
@@ -462,8 +466,8 @@ services:
     - q4_aggregator
     environment:
     - ID=1
-    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator
-    - OUTPUT_QUEUE=q4_results_queue
+    - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_candidates
+    - OUTPUT_QUEUE=final_top_candidates
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
     - VOCABULARY_EXTRACTOR_AMOUNT=2
@@ -479,8 +483,8 @@ services:
     environment:
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - INPUT_QUEUE=q1_results_queue
-    - OUTPUT_QUEUE=results_queue
+    - INPUT_QUEUE=q1_results
+    - OUTPUT_QUEUE=results
     - STORAGE_DIR=/app/storage
     - ENGLISH_FILTER_AMOUNT=2
   q2_aggregator:
@@ -495,8 +499,8 @@ services:
     environment:
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - INPUT_QUEUE=q2_results_queue
-    - OUTPUT_QUEUE=results_queue
+    - INPUT_QUEUE=q2_results
+    - OUTPUT_QUEUE=results
     - STORAGE_DIR=/app/storage
     - IMAGE_DOWNLOADER_AMOUNT=2
   q3_aggregator:
@@ -511,8 +515,8 @@ services:
     environment:
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - INPUT_QUEUE=q3_results_queue
-    - OUTPUT_QUEUE=results_queue
+    - INPUT_QUEUE=q3_results
+    - OUTPUT_QUEUE=results
     - STORAGE_DIR=/app/storage
     - SHARED_WORDS_AGGREGATOR_AMOUNT=2
   q4_aggregator:
@@ -527,8 +531,8 @@ services:
     environment:
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - INPUT_QUEUE=q4_results_queue
-    - OUTPUT_QUEUE=results_queue
+    - INPUT_QUEUE=final_top_candidates
+    - OUTPUT_QUEUE=results
     - STORAGE_DIR=/app/storage
     - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
   q5_aggregator:
@@ -543,6 +547,6 @@ services:
     environment:
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
-    - INPUT_QUEUE=q5_results_queue
-    - OUTPUT_QUEUE=results_queue
+    - INPUT_QUEUE=q5_results
+    - OUTPUT_QUEUE=results
     - STORAGE_DIR=/app/storage

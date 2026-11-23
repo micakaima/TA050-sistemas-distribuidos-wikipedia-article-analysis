@@ -1,16 +1,16 @@
 import yaml
 
 CANT_CLIENTS = 3
-CANT_COLUMN_FILTERS = 4
-CANT_VOCABULARY_EXTRACTORS = 4
-CANT_YEAR_FILTERS = 4
-CANT_ENGLISH_FILTERS = 4
-CANT_BIO_FILTERS = 4
-CANT_IMAGE_DOWNLOADERS = 4
-CANT_OLD_ARTICLES_AVERAGERS = 4
-CANT_ABOVE_AVERAGE_FILTERS = 4
-CANT_SHARED_WORDS_AGGREGATORS = 4
-CANT_PARTIAL_TOP_AGGREGATORS = 4
+CANT_COLUMN_FILTERS = 2
+CANT_VOCABULARY_EXTRACTORS = 2
+CANT_YEAR_FILTERS = 2
+CANT_ENGLISH_FILTERS = 2
+CANT_BIO_FILTERS = 2
+CANT_IMAGE_DOWNLOADERS = 2
+CANT_OLD_ARTICLES_AVERAGERS = 2
+CANT_ABOVE_AVERAGE_FILTERS = 2
+CANT_SHARED_WORDS_AGGREGATORS = 2
+CANT_PARTIAL_TOP_AGGREGATORS = 2
 
 CONNECTION_ATTEMPS=10
 CONNECTION_ATTEMPTS_DELAY_MS=1000
@@ -65,11 +65,11 @@ def generate_column_filter_containers(docker_compose):
                 f"ID={i}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
-                "COLUMN_FILTER_PREFIX=column_filter",
+                "COLUMN_FILTER_PREFIX=raw_articles",
                 f"YEAR_FILTER_AMOUNT={CANT_YEAR_FILTERS}",
-                "YEAR_FILTER_PREFIX=year_filter",
+                "YEAR_FILTER_PREFIX=2020_candidates",
                 f"VOCABULARY_EXTRACTOR_AMOUNT={CANT_VOCABULARY_EXTRACTORS}",
-                "VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor",
+                "VOCABULARY_EXTRACTOR_PREFIX=raw_abstracts",
             ]
         }
 
@@ -90,11 +90,11 @@ def generate_year_filter_containers(docker_compose):
                 f"ID={i}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
-                "YEAR_FILTER_PREFIX=year_filter",
+                "YEAR_FILTER_PREFIX=2020_candidates",
                 f"ENGLISH_FILTER_AMOUNT={CANT_ENGLISH_FILTERS}",
-                "ENGLISH_FILTER_PREFIX=english_filter",
+                "ENGLISH_FILTER_PREFIX=en_candidates",
                 f"BIO_FILTER_AMOUNT={CANT_BIO_FILTERS}",
-                "BIO_FILTER_PREFIX=bio_filter",
+                "BIO_FILTER_PREFIX=bio_candidates",
                 "YEAR=2020",
                 f"COLUMN_FILTER_AMOUNT={CANT_COLUMN_FILTERS}"
             ]
@@ -116,8 +116,8 @@ def generate_english_filter_containers(docker_compose):
                 f"ID={i}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
-                "ENGLISH_FILTER_PREFIX=english_filter",
-                "OUTPUT_QUEUE=q1_results_queue",
+                "ENGLISH_FILTER_PREFIX=en_candidates",
+                "OUTPUT_QUEUE=q1_results",
                 f"YEAR_FILTER_AMOUNT={CANT_YEAR_FILTERS}"
             ]
         }
@@ -137,9 +137,9 @@ def generate_bio_filter_containers(docker_compose):
                 f"ID={i}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
-                "BIO_FILTER_PREFIX=bio_filter",
+                "BIO_FILTER_PREFIX=bio_candidates",
                 f"IMAGE_DOWNLOADER_AMOUNT={CANT_IMAGE_DOWNLOADERS}",
-                "IMAGE_DOWNLOADER_PREFIX=image_downloader",
+                "IMAGE_DOWNLOADER_PREFIX=biography_metadata",
                 f"YEAR_FILTER_AMOUNT={CANT_YEAR_FILTERS}"
             ]
         }
@@ -160,8 +160,8 @@ def generate_image_downloader_containers(docker_compose):
                 f"ID={i}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
-                "IMAGE_DOWNLOADER_PREFIX=image_downloader",
-                "OUTPUT_QUEUE=q2_results_queue",
+                "IMAGE_DOWNLOADER_PREFIX=biography_metadata",
+                "OUTPUT_QUEUE=q2_results",
                 f"BIO_FILTER_AMOUNT={CANT_BIO_FILTERS}",
                 f"MAX_DOWNLOAD_RETRIES={MAX_DOWNLOAD_RETRIES}",
                 f"CLIENT_TIMEOUT={CLIENT_TIMEOUT}",
@@ -200,12 +200,12 @@ def generate_vocabulary_extractor_containers(docker_compose):
                 f"ID={i}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
-                "VOCABULARY_EXTRACTOR_PREFIX=vocabulary_extractor",
-                "OUTPUT_QUEUE=year_splitter_queue",
+                "VOCABULARY_EXTRACTOR_PREFIX=raw_abstracts",
+                "OUTPUT_QUEUE=word_count",
                 f"SHARED_WORDS_AGGREGATOR_AMOUNT={CANT_SHARED_WORDS_AGGREGATORS}",
-                "SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator",
+                "SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_candidates",
                 f"PARTIAL_TOP_AGGREGATOR_AMOUNT={CANT_PARTIAL_TOP_AGGREGATORS}",
-                "PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator",
+                "PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_candidates",
                 f"COLUMN_FILTER_AMOUNT={CANT_COLUMN_FILTERS}"
             ]
         }
@@ -228,7 +228,7 @@ def generate_above_average_filter_containers(docker_compose):
                 "ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
-                "OUTPUT_QUEUE=q5_results_queue",
+                "OUTPUT_QUEUE=q5_results",
                 f"BATCH_SIZE={ABOVE_AVERAGE_FILTER_BATCH_SIZE}"
             ]
         }
@@ -268,8 +268,8 @@ def generate_shared_words_aggregator_containers(docker_compose):
             ],
             "environment": [
                 f"ID={i}",
-                "SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_aggregator",
-                "OUTPUT_QUEUE=q3_results_queue",
+                "SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_candidates",
+                "OUTPUT_QUEUE=q3_results",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
                 f"VOCABULARY_EXTRACTOR_AMOUNT={CANT_VOCABULARY_EXTRACTORS}"
@@ -290,8 +290,8 @@ def generate_partial_top_aggregator_containers(docker_compose):
             ],
             "environment": [
                 f"ID={i}",
-                "PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_aggregator",
-                "OUTPUT_QUEUE=q4_results_queue",
+                "PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_candidates",
+                "OUTPUT_QUEUE=final_top_candidates",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
                 f"VOCABULARY_EXTRACTOR_AMOUNT={CANT_VOCABULARY_EXTRACTORS}"
@@ -301,11 +301,12 @@ def generate_partial_top_aggregator_containers(docker_compose):
 def generate_result_aggregators(docker_compose):
     for i in range(1, 6):
         container_name = f"q{i}_aggregator"
+        input_queue = f"q{i}_results" if i != 4 else "final_top_candidates"
         environment_vars = [
             "MOM_HOST=rabbitmq",
             "MOM_PORT=5672",
-            f"INPUT_QUEUE=q{i}_results_queue",
-            "OUTPUT_QUEUE=results_queue",
+            f"INPUT_QUEUE={input_queue}",
+            "OUTPUT_QUEUE=results",
             "STORAGE_DIR=/app/storage"
         ]
         if i == 1:
@@ -350,7 +351,7 @@ def generate_year_splitter_container(docker_compose):
             "ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data",
             "MOM_HOST=rabbitmq",
             "MOM_PORT=5672",
-            "INPUT_QUEUE=year_splitter_queue",
+            "INPUT_QUEUE=word_count",
             f"VOCABULARY_EXTRACTOR_AMOUNT={CANT_VOCABULARY_EXTRACTORS}"
         ]
     }
@@ -371,11 +372,11 @@ def generate_gateway_container(docker_compose):
         "environment": [
             "SERVER_HOST=gateway",
             "SERVER_PORT=5678",
-            "OUTPUT_QUEUE=results_queue",
+            "OUTPUT_QUEUE=results",
             "MOM_HOST=rabbitmq",
             "MOM_PORT=5672",
             f"COLUMN_FILTER_AMOUNT={CANT_COLUMN_FILTERS}",
-            "COLUMN_FILTER_PREFIX=column_filter"
+            "COLUMN_FILTER_PREFIX=raw_articles"
         ]
     }
 
@@ -388,7 +389,8 @@ def generate_rabbitmq_container(docker_compose):
         },
         "container_name": container_name,
         "environment": [
-            "RABBITMQ_LOG_LEVELS=error"
+            "RABBITMQ_LOG_LEVELS=error",
+            "RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit max_message_size 536870912"
         ],
         "healthcheck": {
             "interval": "5s",
