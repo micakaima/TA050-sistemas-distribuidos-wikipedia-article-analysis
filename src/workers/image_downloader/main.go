@@ -55,9 +55,9 @@ func loadConfig() (image_downloader.Config, error) {
 		return image_downloader.Config{}, errors.New("USER_AGENT environment variable is required")
 	}
 
-	imageCacheDir := os.Getenv("IMAGE_CACHE_DIR")
-	if imageCacheDir == "" {
-		imageCacheDir = "data/cache/images"
+	imageStorageDir := os.Getenv("IMAGE_STORAGE_DIR")
+	if imageStorageDir == "" {
+		imageStorageDir = "data/storage/images"
 	}
 
 	return image_downloader.Config{
@@ -70,7 +70,7 @@ func loadConfig() (image_downloader.Config, error) {
 		MaxDownloadRetries:    maxDownloadRetries,
 		ClientTimeout:         clientTimeout,
 		UserAgent:             userAgent,
-		ImageCacheDir:         imageCacheDir,
+		ImageStorageDir:       imageStorageDir,
 	}, nil
 }
 
