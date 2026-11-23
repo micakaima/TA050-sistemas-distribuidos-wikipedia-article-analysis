@@ -56,6 +56,16 @@ func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
 		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "PARTIAL_TOP_AGGREGATOR_PREFIX")
 	}
 
+	yearSplitterAmount, err := strconv.Atoi(os.Getenv("YEAR_SPLITTER_AMOUNT"))
+	if err != nil {
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "YEAR_SPLITTER_AMOUNT")
+	}
+
+	yearSplitterPrefix := os.Getenv("YEAR_SPLITTER_PREFIX")
+	if yearSplitterPrefix == "" {
+		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "YEAR_SPLITTER_PREFIX")
+	}
+
 	columnFilterAmount, err := strconv.Atoi(os.Getenv("COLUMN_FILTER_AMOUNT"))
 	if err != nil {
 		return vextractor.VocabularyExtractorConfig{}, fmt.Errorf(errors.ConfigSetupError, "COLUMN_FILTER_AMOUNT")
@@ -66,11 +76,12 @@ func loadConfig() (vextractor.VocabularyExtractorConfig, error) {
 		MomHost:                     momHost,
 		MomPort:                     momPort,
 		VocabularyExtractorPrefix:   vocabularyExtractorPrefix,
-		OutputQueueQ5:               outputQueueQ5,
 		SharedWordsAggregatorAmount: sharedWordsAggregatorAmount,
 		SharedWordsAggregatorPrefix: sharedWordsAggregatorPrefix,
 		PartialTopAggregatorAmount:  partialTopAggregatorAmount,
 		PartialTopAggregatorPrefix:  partialTopAggregatorPrefix,
+		YearSplitterAmount:          yearSplitterAmount,
+		YearSplitterPrefix:          yearSplitterPrefix,
 		ColumnFilterAmount:          columnFilterAmount,
 	}, nil
 }

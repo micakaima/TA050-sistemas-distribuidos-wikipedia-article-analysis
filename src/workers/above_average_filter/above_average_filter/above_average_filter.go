@@ -23,6 +23,7 @@ type AboveAverageFilterConfig struct {
 	OutputQueue                     string
 	AboveAverageFilterPrefixData    string
 	AboveAverageFilterPrefixAverage string
+	YearSplitterAmount              int
 	BatchSize                       int
 }
 
@@ -32,14 +33,16 @@ type AboveAverageFilterWorker struct {
 	outputQueue          middleware.Middleware
 	batchSize            int
 	clientStates         map[uint64]*ClientState
+	yearSplitterAmount   int
 	lock                 sync.Mutex
 }
 
 type ClientState struct {
 	articlesWordCounts []messages.NewArticleWordCount
 	average            float64
+	totalReceivedEofs  int
 	receivedAverage    bool
-	receivedEof        bool
+	receivedFinalEof   bool
 }
 
 func New(config AboveAverageFilterConfig) (*AboveAverageFilterWorker, error) {
@@ -70,6 +73,7 @@ func New(config AboveAverageFilterConfig) (*AboveAverageFilterWorker, error) {
 		outputQueue:          outputQueue,
 		batchSize:            config.BatchSize,
 		clientStates:         map[uint64]*ClientState{},
+		yearSplitterAmount:   config.YearSplitterAmount,
 		lock:                 sync.Mutex{},
 	}, nil
 }
@@ -157,17 +161,18 @@ func (w *AboveAverageFilterWorker) handleWordCount(msg middleware.Message) error
 }
 
 func (w *AboveAverageFilterWorker) handleEOF(msg middleware.Message) error {
-	slog.Info("Received EOF message")
-
 	canSendResult := false
 	utils.WithLock(&w.lock, func() {
 		if _, exists := w.clientStates[msg.ClientID]; !exists {
 			w.clientStates[msg.ClientID] = &ClientState{}
 		}
 		state := w.clientStates[msg.ClientID]
-		state.receivedEof = true
-		if state.receivedAverage {
-			canSendResult = true
+		state.totalReceivedEofs++
+		if state.totalReceivedEofs >= w.yearSplitterAmount {
+			state.receivedFinalEof = true
+			if state.receivedAverage {
+				canSendResult = true
+			}
 		}
 	})
 
@@ -206,7 +211,7 @@ func (w *AboveAverageFilterWorker) handleAverageMessage(msg middleware.Message, 
 		state := w.clientStates[msg.ClientID]
 		state.average = oldAverage.Average
 		state.receivedAverage = true
-		if state.receivedEof {
+		if state.receivedFinalEof {
 			canSendResult = true
 		}
 	})

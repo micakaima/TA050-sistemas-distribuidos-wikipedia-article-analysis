@@ -19,6 +19,7 @@ type OldArticlesAveragerConfig struct {
 	OldArticlesAveragerPrefix string
 	AboveAverageFilterAmount  int
 	AboveAverageFilterPrefix  string
+	YearSplitterAmount        int
 }
 
 type OldArticlesAveragerWorker struct {
@@ -27,11 +28,13 @@ type OldArticlesAveragerWorker struct {
 	clientStates             map[uint64]*ClientState
 	aboveAverageFilterAmount int
 	aboveAverageFilterPrefix string
+	yearSplitterAmount       int
 }
 
 type ClientState struct {
-	totalWords uint32
-	totalCount uint32
+	totalWords        uint32
+	totalCount        uint32
+	totalReceivedEofs int
 }
 
 func New(config OldArticlesAveragerConfig) (*OldArticlesAveragerWorker, error) {
@@ -55,6 +58,7 @@ func New(config OldArticlesAveragerConfig) (*OldArticlesAveragerWorker, error) {
 		clientStates:             map[uint64]*ClientState{},
 		aboveAverageFilterAmount: config.AboveAverageFilterAmount,
 		aboveAverageFilterPrefix: config.AboveAverageFilterPrefix,
+		yearSplitterAmount:       config.YearSplitterAmount,
 	}, nil
 }
 
@@ -132,7 +136,15 @@ func (w *OldArticlesAveragerWorker) handleWordCount(msg middleware.Message) erro
 }
 
 func (w *OldArticlesAveragerWorker) handleEOF(msg middleware.Message) error {
-	slog.Info("Received EOF message")
+	if _, exists := w.clientStates[msg.ClientID]; !exists {
+		w.clientStates[msg.ClientID] = &ClientState{}
+	}
+	state := w.clientStates[msg.ClientID]
+	state.totalReceivedEofs++
+	if state.totalReceivedEofs < w.yearSplitterAmount {
+		return nil
+	}
+
 	clientAverage := w.calculateAverage(msg.ClientID)
 
 	average := messages.OldAverage{Average: clientAverage}

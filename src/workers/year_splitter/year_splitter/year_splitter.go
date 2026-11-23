@@ -17,9 +17,11 @@ import (
 const SPLITTER_YEAR = 2020
 
 type YearSplitterConfig struct {
+	Id                        int
 	MomHost                   string
 	MomPort                   int
 	InputQueue                string
+	YearSplitterPrefix        string
 	VocabularyExtractorAmount int
 	OldArticlesAveragerAmount int
 	OldArticlesAveragerPrefix string
@@ -28,7 +30,7 @@ type YearSplitterConfig struct {
 }
 
 type YearSplitterWorker struct {
-	inputQueue                middleware.Middleware
+	inputExchange             middleware.Middleware
 	outputExchangeOld         middleware.ExchangeMiddleware
 	outputExchangeNew         middleware.ExchangeMiddleware
 	recvEofCountMap           map[uint64]int
@@ -42,26 +44,27 @@ type YearSplitterWorker struct {
 func New(config YearSplitterConfig) (*YearSplitterWorker, error) {
 	connSettings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
-	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueue, connSettings)
+	inputExchangeRoutingKey := []string{utils.GenerateRoutingKey(config.YearSplitterPrefix, config.Id)}
+	inputExchange, err := middleware.CreateExchangeMiddleware(config.YearSplitterPrefix, inputExchangeRoutingKey, connSettings)
 	if err != nil {
 		return nil, err
 	}
 
 	outputExchangeOld, err := middleware.CreateExchangeMiddleware(config.OldArticlesAveragerPrefix, []string{}, connSettings)
 	if err != nil {
-		inputQueue.Close()
+		inputExchange.Close()
 		return nil, err
 	}
 
 	outputExchangeNew, err := middleware.CreateExchangeMiddleware(config.AboveAverageFilterPrefix, []string{}, connSettings)
 	if err != nil {
-		inputQueue.Close()
+		inputExchange.Close()
 		outputExchangeOld.Close()
 		return nil, err
 	}
 
 	return &YearSplitterWorker{
-		inputQueue:                inputQueue,
+		inputExchange:             inputExchange,
 		outputExchangeOld:         outputExchangeOld,
 		outputExchangeNew:         outputExchangeNew,
 		recvEofCountMap:           map[uint64]int{},
@@ -80,7 +83,7 @@ func (w *YearSplitterWorker) Run() {
 	var wg sync.WaitGroup
 
 	utils.SpawnWithWG(&wg, func() {
-		w.inputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
+		w.inputExchange.StartConsuming(func(msg middleware.Message, ack, nack func()) {
 			w.handleMessage(msg, ack, nack)
 		})
 	})
@@ -96,7 +99,7 @@ func (w *YearSplitterWorker) handleSignals(done chan struct{}) {
 		select {
 		case <-signals:
 			slog.Info("Graceful shutdown started...")
-			w.inputQueue.StopConsuming()
+			w.inputExchange.StopConsuming()
 		case <-done:
 			return
 		}
@@ -104,7 +107,7 @@ func (w *YearSplitterWorker) handleSignals(done chan struct{}) {
 }
 
 func (w *YearSplitterWorker) shutdown() {
-	if err := w.inputQueue.Close(); err != nil {
+	if err := w.inputExchange.Close(); err != nil {
 		slog.Error("While closing input queue", "err", err)
 	}
 	if err := w.outputExchangeOld.Close(); err != nil {

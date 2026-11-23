@@ -11,6 +11,11 @@ import (
 )
 
 func loadConfig() (ysplitter.YearSplitterConfig, error) {
+	id, err := strconv.Atoi(os.Getenv("ID"))
+	if err != nil {
+		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "ID")
+	}
+
 	momHost := os.Getenv("MOM_HOST")
 	if momHost == "" {
 		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_HOST")
@@ -24,6 +29,11 @@ func loadConfig() (ysplitter.YearSplitterConfig, error) {
 	inputQueue := os.Getenv("INPUT_QUEUE")
 	if inputQueue == "" {
 		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "INPUT_QUEUE")
+	}
+
+	yearSplitterPrefix := os.Getenv("YEAR_SPLITTER_PREFIX")
+	if yearSplitterPrefix == "" {
+		return ysplitter.YearSplitterConfig{}, fmt.Errorf(errors.ConfigSetupError, "YEAR_SPLITTER_PREFIX")
 	}
 
 	vocabularyExtractorAmount, err := strconv.Atoi(os.Getenv("VOCABULARY_EXTRACTOR_AMOUNT"))
@@ -52,9 +62,11 @@ func loadConfig() (ysplitter.YearSplitterConfig, error) {
 	}
 
 	return ysplitter.YearSplitterConfig{
+		Id:                        id,
 		MomHost:                   momHost,
 		MomPort:                   momPort,
 		InputQueue:                inputQueue,
+		YearSplitterPrefix:        yearSplitterPrefix,
 		VocabularyExtractorAmount: vocabularyExtractorAmount,
 		OldArticlesAveragerAmount: oldArticlesAveragerAmount,
 		OldArticlesAveragerPrefix: oldArticlesAveragerPrefix,

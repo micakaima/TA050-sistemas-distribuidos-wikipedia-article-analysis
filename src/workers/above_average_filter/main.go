@@ -41,6 +41,11 @@ func loadConfig() (abovefilter.AboveAverageFilterConfig, error) {
 		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE")
 	}
 
+	yearSplitterAmount, err := strconv.Atoi(os.Getenv("YEAR_SPLITTER_AMOUNT"))
+	if err != nil {
+		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "YEAR_SPLITTER_AMOUNT")
+	}
+
 	batchSize, err := strconv.Atoi(os.Getenv("BATCH_SIZE"))
 	if err != nil {
 		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "BATCH_SIZE")
@@ -53,6 +58,7 @@ func loadConfig() (abovefilter.AboveAverageFilterConfig, error) {
 		OutputQueue:                     outputQueue,
 		AboveAverageFilterPrefixData:    aboveAverageFilterPrefixData,
 		AboveAverageFilterPrefixAverage: aboveAverageFilterPrefixAverage,
+		YearSplitterAmount:              yearSplitterAmount,
 		BatchSize:                       batchSize,
 	}, nil
 }

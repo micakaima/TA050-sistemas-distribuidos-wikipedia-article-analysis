@@ -41,6 +41,11 @@ func loadConfig() (averager.OldArticlesAveragerConfig, error) {
 		return averager.OldArticlesAveragerConfig{}, fmt.Errorf(errors.ConfigSetupError, "ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE")
 	}
 
+	yearSplitterAmount, err := strconv.Atoi(os.Getenv("YEAR_SPLITTER_AMOUNT"))
+	if err != nil {
+		return averager.OldArticlesAveragerConfig{}, fmt.Errorf(errors.ConfigSetupError, "YEAR_SPLITTER_AMOUNT")
+	}
+
 	return averager.OldArticlesAveragerConfig{
 		Id:                        id,
 		MomHost:                   momHost,
@@ -48,6 +53,7 @@ func loadConfig() (averager.OldArticlesAveragerConfig, error) {
 		OldArticlesAveragerPrefix: oldArticlesAveragerPrefix,
 		AboveAverageFilterAmount:  aboveAverageFilterAmount,
 		AboveAverageFilterPrefix:  aboveAverageFilterPrefix,
+		YearSplitterAmount:        yearSplitterAmount,
 	}, nil
 }
 

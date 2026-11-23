@@ -136,7 +136,8 @@ services:
       dockerfile: src/workers/vocabulary_extractor/Dockerfile
     container_name: vocabulary_extractor_0
     depends_on:
-    - year_splitter
+    - year_splitter_0
+    - year_splitter_1
     - shared_words_aggregator_0
     - shared_words_aggregator_1
     - partial_top_aggregator_0
@@ -151,6 +152,8 @@ services:
     - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_candidates
     - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
     - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_candidates
+    - YEAR_SPLITTER_AMOUNT=2
+    - YEAR_SPLITTER_PREFIX=year_splitter
     - COLUMN_FILTER_AMOUNT=2
   vocabulary_extractor_1:
     build:
@@ -158,7 +161,8 @@ services:
       dockerfile: src/workers/vocabulary_extractor/Dockerfile
     container_name: vocabulary_extractor_1
     depends_on:
-    - year_splitter
+    - year_splitter_0
+    - year_splitter_1
     - shared_words_aggregator_0
     - shared_words_aggregator_1
     - partial_top_aggregator_0
@@ -173,6 +177,8 @@ services:
     - SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_candidates
     - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
     - PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_candidates
+    - YEAR_SPLITTER_AMOUNT=2
+    - YEAR_SPLITTER_PREFIX=year_splitter
     - COLUMN_FILTER_AMOUNT=2
   shared_words_aggregator_0:
     build:
@@ -202,17 +208,40 @@ services:
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
     - VOCABULARY_EXTRACTOR_AMOUNT=2
-  year_splitter:
+  year_splitter_0:
     build:
       context: .
       dockerfile: src/workers/year_splitter/Dockerfile
-    container_name: year_splitter
+    container_name: year_splitter_0
     depends_on:
     - old_articles_averager_0
     - old_articles_averager_1
     - above_average_filter_0
     - above_average_filter_1
     environment:
+    - ID=0
+    - YEAR_SPLITTER_PREFIX=year_splitter
+    - OLD_ARTICLES_AVERAGER_AMOUNT=2
+    - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
+    - ABOVE_AVERAGE_FILTER_AMOUNT=2
+    - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - INPUT_QUEUE=word_count
+    - VOCABULARY_EXTRACTOR_AMOUNT=2
+  year_splitter_1:
+    build:
+      context: .
+      dockerfile: src/workers/year_splitter/Dockerfile
+    container_name: year_splitter_1
+    depends_on:
+    - old_articles_averager_0
+    - old_articles_averager_1
+    - above_average_filter_0
+    - above_average_filter_1
+    environment:
+    - ID=1
+    - YEAR_SPLITTER_PREFIX=year_splitter
     - OLD_ARTICLES_AVERAGER_AMOUNT=2
     - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
     - ABOVE_AVERAGE_FILTER_AMOUNT=2
@@ -234,6 +263,7 @@ services:
     - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
     - ABOVE_AVERAGE_FILTER_AMOUNT=2
     - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
+    - YEAR_SPLITTER_AMOUNT=2
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
   old_articles_averager_1:
@@ -249,6 +279,7 @@ services:
     - OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager
     - ABOVE_AVERAGE_FILTER_AMOUNT=2
     - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
+    - YEAR_SPLITTER_AMOUNT=2
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
   above_average_filter_0:
@@ -262,6 +293,7 @@ services:
     - ID=0
     - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
     - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
+    - YEAR_SPLITTER_AMOUNT=2
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
     - OUTPUT_QUEUE=q5_results
@@ -277,6 +309,7 @@ services:
     - ID=1
     - ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data
     - ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average
+    - YEAR_SPLITTER_AMOUNT=2
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
     - OUTPUT_QUEUE=q5_results
@@ -524,3 +557,4 @@ services:
     - INPUT_QUEUE=q5_results
     - OUTPUT_QUEUE=results
     - STORAGE_DIR=/app/storage
+    - ABOVE_AVERAGE_FILTER_AMOUNT=2

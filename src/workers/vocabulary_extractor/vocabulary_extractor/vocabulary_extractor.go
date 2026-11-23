@@ -23,11 +23,12 @@ type VocabularyExtractorConfig struct {
 	MomHost                     string
 	MomPort                     int
 	VocabularyExtractorPrefix   string
-	OutputQueueQ5               string
 	SharedWordsAggregatorAmount int
 	SharedWordsAggregatorPrefix string
 	PartialTopAggregatorAmount  int
 	PartialTopAggregatorPrefix  string
+	YearSplitterAmount          int
+	YearSplitterPrefix          string
 	ColumnFilterAmount          int
 }
 
@@ -35,12 +36,14 @@ type VocabularyExtractorWorker struct {
 	inputExchange               middleware.Middleware
 	outputExchangeQ3            middleware.ExchangeMiddleware
 	outputExchangeQ4            middleware.ExchangeMiddleware
-	outputQueueQ5               middleware.Middleware
+	outputExchangeQ5            middleware.ExchangeMiddleware
 	recvEofCountMap             map[uint64]int
 	sharedWordsAggregatorAmount int
 	sharedWordsAggregatorPrefix string
 	partialTopAggregatorAmount  int
 	partialTopAggregatorPrefix  string
+	yearSplitterAmount          int
+	yearSplitterPrefix          string
 	columnFilterAmount          int
 }
 
@@ -64,7 +67,7 @@ func New(config VocabularyExtractorConfig) (*VocabularyExtractorWorker, error) {
 		outputExchangeQ3.Close()
 		return nil, err
 	}
-	outputQueueQ5, err := middleware.CreateQueueMiddleware(config.OutputQueueQ5, connSettings)
+	outputExchangeQ5, err := middleware.CreateExchangeMiddleware(config.YearSplitterPrefix, []string{}, connSettings)
 	if err != nil {
 		inputExchange.Close()
 		outputExchangeQ3.Close()
@@ -75,12 +78,14 @@ func New(config VocabularyExtractorConfig) (*VocabularyExtractorWorker, error) {
 		inputExchange:               inputExchange,
 		outputExchangeQ3:            outputExchangeQ3,
 		outputExchangeQ4:            outputExchangeQ4,
-		outputQueueQ5:               outputQueueQ5,
+		outputExchangeQ5:            outputExchangeQ5,
 		recvEofCountMap:             map[uint64]int{},
 		sharedWordsAggregatorAmount: config.SharedWordsAggregatorAmount,
 		sharedWordsAggregatorPrefix: config.SharedWordsAggregatorPrefix,
 		partialTopAggregatorAmount:  config.PartialTopAggregatorAmount,
 		partialTopAggregatorPrefix:  config.PartialTopAggregatorPrefix,
+		yearSplitterAmount:          config.YearSplitterAmount,
+		yearSplitterPrefix:          config.YearSplitterPrefix,
 		columnFilterAmount:          config.ColumnFilterAmount,
 	}, nil
 }
@@ -125,8 +130,8 @@ func (w *VocabularyExtractorWorker) shutdown() {
 	if err := w.outputExchangeQ4.Close(); err != nil {
 		slog.Error("While closing Q4 output exchange", "err", err)
 	}
-	if err := w.outputQueueQ5.Close(); err != nil {
-		slog.Error("While closing Q5 output queue", "err", err)
+	if err := w.outputExchangeQ5.Close(); err != nil {
+		slog.Error("While closing Q5 output exchange", "err", err)
 	}
 
 }
@@ -214,15 +219,18 @@ func (w *VocabularyExtractorWorker) sendPartialTopCandidates(clientID uint64, cl
 }
 
 func (w *VocabularyExtractorWorker) sendWordCounts(clientID uint64, cleanVocabularies generic.Batch[*messages.ExtractedVocabulary]) error {
-	wordCounts := getWordCounts(cleanVocabularies)
-	wordCountsMsg, err := middleware.NewMessage(clientID, messages.WordCountCode, &wordCounts)
-	if err != nil {
-		slog.Debug("While creating Word Count Batch message", "err", err)
-		return err
-	}
-	if err := w.outputQueueQ5.Send(*wordCountsMsg); err != nil {
-		slog.Debug("While sending Word Count Batch message", "err", err)
-		return err
+	wordCountsByNode := groupWordCounts(cleanVocabularies, w.yearSplitterAmount)
+	for node, wordCounts := range wordCountsByNode {
+		msg, err := middleware.NewMessage(clientID, messages.WordCountCode, wordCounts)
+		if err != nil {
+			slog.Debug("While creating Word Count Batch message", "err", err)
+			return err
+		}
+		routingKey := utils.GenerateRoutingKey(w.yearSplitterPrefix, node)
+		if err := w.outputExchangeQ5.SendToKey(*msg, routingKey); err != nil {
+			slog.Debug("While sending Word Count Batch message", "err", err)
+			return err
+		}
 	}
 	return nil
 }
@@ -261,9 +269,13 @@ func (w *VocabularyExtractorWorker) handleEOF(msg middleware.Message) error {
 		}
 	}
 
-	if err := w.outputQueueQ5.Send(*eofMessage); err != nil {
-		slog.Debug("While sending EOF message", "err", err)
-		return err
+	// Broadcast del EOF a todos los shards de Q5.
+	for n := 0; n < w.yearSplitterAmount; n++ {
+		routingKey := utils.GenerateRoutingKey(w.yearSplitterPrefix, n)
+		if err := w.outputExchangeQ5.SendToKey(*eofMessage, routingKey); err != nil {
+			slog.Debug("While sending EOF message to Q5 shard", "err", err)
+			return err
+		}
 	}
 	return nil
 }
@@ -307,6 +319,25 @@ func groupPartialTopCandidates(cleanVocabularies generic.Batch[*messages.Extract
 	return candidatesByNode
 }
 
+// groupWordCounts agrupa los WordCount de Q5 por shard según el hash del ArticleID.
+func groupWordCounts(cleanVocabularies generic.Batch[*messages.ExtractedVocabulary], amount int) map[int]*generic.Batch[*messages.WordCount] {
+	wordCountsByNode := make(map[int]*generic.Batch[*messages.WordCount])
+	for _, v := range cleanVocabularies.Items {
+		targetNode := utils.GetTargetNodeByArticleID(v.ArticleID, amount)
+		if _, exists := wordCountsByNode[targetNode]; !exists {
+			batch := messages.NewEmptyWordCountBatch(0)
+			wordCountsByNode[targetNode] = &batch
+		}
+		wordCountsByNode[targetNode].Add(&messages.WordCount{
+			ArticleID:    v.ArticleID,
+			DateModified: v.DateModified,
+			URL:          v.URL,
+			WordCount:    v.WordCount,
+		})
+	}
+	return wordCountsByNode
+}
+
 func extractCleanVocabularies(rawAbstractBatch generic.Batch[*messages.RawAbstract]) generic.Batch[*messages.ExtractedVocabulary] {
 	vocabularies := messages.NewEmptyExtractedVocabularyBatch(rawAbstractBatch.Len())
 	for _, abs := range rawAbstractBatch.Items {
@@ -334,19 +365,4 @@ func extractCleanVocabulary(abstract string, lang string) map[string]struct{} {
 		}
 	}
 	return cleanVocabulary
-}
-
-// getWordCounts genera los word counts para Q5.
-func getWordCounts(cleanVocabularies generic.Batch[*messages.ExtractedVocabulary]) generic.Batch[*messages.WordCount] {
-	wordCounts := messages.NewEmptyWordCountBatch(cleanVocabularies.Len())
-
-	for _, v := range cleanVocabularies.Items {
-		wordCounts.Add(&messages.WordCount{
-			ArticleID:    v.ArticleID,
-			DateModified: v.DateModified,
-			URL:          v.URL,
-			WordCount:    v.WordCount,
-		})
-	}
-	return wordCounts
 }

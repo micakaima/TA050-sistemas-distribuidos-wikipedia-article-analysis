@@ -7,6 +7,7 @@ CANT_YEAR_FILTERS = 2
 CANT_ENGLISH_FILTERS = 2
 CANT_BIO_FILTERS = 2
 CANT_IMAGE_DOWNLOADERS = 2
+CANT_YEAR_SPLITTERS = 2
 CANT_OLD_ARTICLES_AVERAGERS = 2
 CANT_ABOVE_AVERAGE_FILTERS = 2
 CANT_SHARED_WORDS_AGGREGATORS = 2
@@ -173,11 +174,11 @@ def generate_image_downloader_containers(docker_compose):
 def generate_vocabulary_extractor_containers(docker_compose):
     for i in range(CANT_VOCABULARY_EXTRACTORS):
         container_name = f"vocabulary_extractor_{i}"
-        depends_list = ["year_splitter"]
-        for j in range(CANT_SHARED_WORDS_AGGREGATORS):
-            depends_list.append(f"shared_words_aggregator_{j}")
-        for k in range(CANT_PARTIAL_TOP_AGGREGATORS):
-            depends_list.append(f"partial_top_aggregator_{k}")
+        depends_list = [f"year_splitter_{j}" for j in range(CANT_YEAR_SPLITTERS)]
+        for k in range(CANT_SHARED_WORDS_AGGREGATORS):
+            depends_list.append(f"shared_words_aggregator_{k}")
+        for l in range(CANT_PARTIAL_TOP_AGGREGATORS):
+            depends_list.append(f"partial_top_aggregator_{l}")
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",
@@ -195,6 +196,8 @@ def generate_vocabulary_extractor_containers(docker_compose):
                 "SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_candidates",
                 f"PARTIAL_TOP_AGGREGATOR_AMOUNT={CANT_PARTIAL_TOP_AGGREGATORS}",
                 "PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_candidates",
+                f"YEAR_SPLITTER_AMOUNT={CANT_YEAR_SPLITTERS}",
+                "YEAR_SPLITTER_PREFIX=year_splitter",
                 f"COLUMN_FILTER_AMOUNT={CANT_COLUMN_FILTERS}"
             ]
         }
@@ -215,6 +218,7 @@ def generate_above_average_filter_containers(docker_compose):
                 f"ID={i}",
                 "ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data",
                 "ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average",
+                f"YEAR_SPLITTER_AMOUNT={CANT_YEAR_SPLITTERS}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
                 "OUTPUT_QUEUE=q5_results",
@@ -238,6 +242,7 @@ def generate_old_articles_averager_containers(docker_compose):
                 "OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager",
                 f"ABOVE_AVERAGE_FILTER_AMOUNT={CANT_ABOVE_AVERAGE_FILTERS}",
                 "ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average",
+                f"YEAR_SPLITTER_AMOUNT={CANT_YEAR_SPLITTERS}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
             ]
@@ -323,29 +328,32 @@ def generate_result_aggregators(docker_compose):
             "environment": environment_vars
         }
 
-def generate_year_splitter_container(docker_compose):
-    container_name = "year_splitter"
-    depends_list = [f"old_articles_averager_{j}" for j in range(CANT_OLD_ARTICLES_AVERAGERS)]
-    for k in range(CANT_ABOVE_AVERAGE_FILTERS):
-        depends_list.append(f"above_average_filter_{k}")
-    docker_compose["services"][container_name] = {
-        "build": {
-            "context": ".",
-            "dockerfile": "src/workers/year_splitter/Dockerfile",
-        },
-        "container_name": container_name,
-        "depends_on": depends_list,
-        "environment": [
-            f"OLD_ARTICLES_AVERAGER_AMOUNT={CANT_OLD_ARTICLES_AVERAGERS}",
-            "OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager",
-            f"ABOVE_AVERAGE_FILTER_AMOUNT={CANT_ABOVE_AVERAGE_FILTERS}",
-            "ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data",
-            "MOM_HOST=rabbitmq",
-            "MOM_PORT=5672",
-            "INPUT_QUEUE=word_count",
-            f"VOCABULARY_EXTRACTOR_AMOUNT={CANT_VOCABULARY_EXTRACTORS}"
-        ]
-    }
+def generate_year_splitter_containers(docker_compose):
+    for i in range(CANT_YEAR_SPLITTERS):
+        container_name = f"year_splitter_{i}"        
+        depends_list = [f"old_articles_averager_{j}" for j in range(CANT_OLD_ARTICLES_AVERAGERS)]
+        for k in range(CANT_ABOVE_AVERAGE_FILTERS):
+            depends_list.append(f"above_average_filter_{k}")
+        docker_compose["services"][container_name] = {
+            "build": {
+                "context": ".",
+                "dockerfile": "src/workers/year_splitter/Dockerfile",
+            },
+            "container_name": container_name,
+            "depends_on": depends_list,
+            "environment": [
+                f"ID={i}",
+                "YEAR_SPLITTER_PREFIX=year_splitter",
+                f"OLD_ARTICLES_AVERAGER_AMOUNT={CANT_OLD_ARTICLES_AVERAGERS}",
+                "OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager",
+                f"ABOVE_AVERAGE_FILTER_AMOUNT={CANT_ABOVE_AVERAGE_FILTERS}",
+                "ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data",
+                "MOM_HOST=rabbitmq",
+                "MOM_PORT=5672",
+                "INPUT_QUEUE=word_count",
+                f"VOCABULARY_EXTRACTOR_AMOUNT={CANT_VOCABULARY_EXTRACTORS}"
+            ]
+        }
 
 def generate_gateway_container(docker_compose):
     container_name = "gateway"
@@ -407,7 +415,7 @@ def main():
     generate_column_filter_containers(docker_compose)
     generate_vocabulary_extractor_containers(docker_compose)
     generate_shared_words_aggregator_containers(docker_compose)
-    generate_year_splitter_container(docker_compose)
+    generate_year_splitter_containers(docker_compose)
     generate_old_articles_averager_containers(docker_compose)
     generate_above_average_filter_containers(docker_compose)
     generate_year_filter_containers(docker_compose)
