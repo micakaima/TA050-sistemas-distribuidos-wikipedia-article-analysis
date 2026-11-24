@@ -174,7 +174,7 @@ func (w *OldArticlesAveragerWorker) saveWordCount(clientID uint64, wordCount mes
 
 func (w *OldArticlesAveragerWorker) calculateAverage(clientID uint64) float64 {
 	clientState, exists := w.clientStates[clientID]
-	if !exists {
+	if !exists || clientState.totalCount == 0 {
 		return 0
 	}
 	return float64(clientState.totalWords) / float64(clientState.totalCount)
