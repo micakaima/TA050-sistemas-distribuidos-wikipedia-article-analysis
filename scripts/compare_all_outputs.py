@@ -1,4 +1,18 @@
-import subprocess, sys, argparse
+import subprocess, sys, argparse, os, json
+
+CONFIG_FILE_PATH = "./scripts/configs/compare_all_outputs_config.json"
+DEFAULT_BASE_DIR1="data/output"
+DEFAULT_BASE_DIR2="data/expected_results"
+
+def load_config(config_path=CONFIG_FILE_PATH):
+    if not os.path.exists(config_path):
+        raise FileNotFoundError("Config file not found")
+    with open(config_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return {
+        "base_dir1": data.get("base_dir1", DEFAULT_BASE_DIR1),
+        "base_dir2": data.get("base_dir2", DEFAULT_BASE_DIR2),
+    }
 
 # Permite comparar todas las querys results para 1 cliente.
 #   - Los resultados generados deben estar en data/output/output_{ID}
@@ -10,13 +24,14 @@ def parse_arguments():
     return parser.parse_args()
 
 def main():
+    config = load_config()
     args = parse_arguments()
 
     all_matched = True
 
     for i in range(1, 6):
-        file1 = f"data/output/output_{args.client}/query_{i}_result.txt"
-        file2 = f"data/expected_results/results_{args.client}/query_{i}_result.txt"
+        file1 = f"{config["base_dir1"]}/output_{args.client}/query_{i}_result.txt"
+        file2 = f"{config["base_dir2"]}/results_{args.client}/query_{i}_result.txt"
         
         print(f" Analizando Query {i}: ")
         print(f" - File 1: {file1}")

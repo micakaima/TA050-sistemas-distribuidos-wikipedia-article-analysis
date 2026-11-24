@@ -1,7 +1,14 @@
-import argparse
+import argparse, json, os
 import re
 import sys
 from pathlib import Path
+
+CONFIG_FILE_PATH = "./scripts/configs/compare_q2_deterministic_config.json"
+DEFAULT_FILE1="data/output/output_0/query_2_result.txt"
+DEFAULT_FILE2="data/expected_results/result_0/query_2_result.txt"
+DEFAULT_TOLERANCE=0.05
+DEFAULT_ALLOW_EXTERNAL_ERRORS=True
+DEFAULT_VERBOSE=True
 
 RECORD_START = re.compile(rb"^\d+,[^,\r\n]*,\s*https?://")
 
@@ -11,6 +18,20 @@ ERROR_RULES = [
     (b"External API error: Failed all attempts for download", "failed_all_attempts"),
     (b"External API error: Missing Image URL Error", "missing_url"),
 ]
+
+def load_config(config_path=CONFIG_FILE_PATH):
+    if not os.path.exists(config_path):
+        raise FileNotFoundError("Config file not found")
+    with open(config_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    paths_cfg = data.get("paths", {})
+    return {
+        "file1": paths_cfg.get("file1", DEFAULT_FILE1),
+        "file2": paths_cfg.get("file2", DEFAULT_FILE2),
+        "tolerance": data.get("tolerance", DEFAULT_TOLERANCE), 
+        "allow_external_errors": data.get("allow_external_errors", DEFAULT_ALLOW_EXTERNAL_ERRORS), 
+        "verbose": data.get("verbose", DEFAULT_VERBOSE), 
+    }
 
 def is_error(payload: bytes):
     stripped = payload.lstrip()
@@ -222,12 +243,13 @@ def error_breakdown(records: dict[bytes, dict]) -> str:
 
 
 def main() -> int:
+    config = load_config()
     ap = argparse.ArgumentParser(description="Compares results of query 2 with byte-level tolerance.")
-    ap.add_argument("-f1", "--file1", required=True)
-    ap.add_argument("-f2", "--file2", required=True)
-    ap.add_argument("--tolerance", type=float, default=0.05, help="Maximum tolerance threshold for distinct bytes (ej. 0.05 = 5%%)")
-    ap.add_argument("--allow-external-errors", type=bool, default=True, help="Allow External API errors ('External API error: ...')")
-    ap.add_argument("--verbose", type=bool, default=True, help="Verbose")
+    ap.add_argument("-f1", "--file1", type=str, default=config["file1"], help="File 1 path")
+    ap.add_argument("-f2", "--file2", type=str, default=config["file2"], help="File 2 path")
+    ap.add_argument("--tolerance", type=float, default=config["tolerance"], help="Maximum tolerance threshold for distinct bytes (ej. 0.05 = 5%%)")
+    ap.add_argument("--allow-external-errors", type=bool, default=config["allow_external_errors"], help="Allow External API errors ('External API error: ...')")
+    ap.add_argument("--verbose", type=bool, default=config["verbose"], help="Verbose")
     args = ap.parse_args()
 
     p1, p2 = Path(args.file1), Path(args.file2)

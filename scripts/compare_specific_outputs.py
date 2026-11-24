@@ -1,18 +1,34 @@
 import difflib, argparse, pathlib, sys
 from collections import Counter
+import os, json
+
+CONFIG_FILE_PATH = "./scripts/configs/generate_different_inputs_config.json"
+DEFAULT_FILE1="data/output/output_0/query_1_result.txt"
+DEFAULT_FILE2="data/expected_results/results_0/query_1_result.txt"
+
+def load_config(config_path=CONFIG_FILE_PATH):
+    if not os.path.exists(config_path):
+        raise FileNotFoundError("Config file not found")
+    with open(config_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return {
+        "file1": data.get("file1", DEFAULT_FILE1),
+        "file2": data.get("file2", DEFAULT_FILE2)
+    }
 
 # Permite comparar 2 archivos individuales.
 #   - Se debe pasar como argumento '-f1' el path del archivo 1.
 #   - Se debe pasar como argumento '-f2' el path del archivo 2.
-def parse_arguments():
+def parse_arguments(config):
     parser = argparse.ArgumentParser(description="Compares two files")
-    parser.add_argument("-f1", "--file1", type=str, required=True, help="File 1 path")
-    parser.add_argument("-f2", "--file2", type=str, required=True, help="File 2 path")
+    parser.add_argument("-f1", "--file1", type=str, default=config["file1"], help="File 1 path")
+    parser.add_argument("-f2", "--file2", type=str, default=config["file2"], help="File 2 path")
     return parser.parse_args()
 
 
 def main():
-    args = parse_arguments()
+    config = load_config()
+    args = parse_arguments(config)
 
     path1 = pathlib.Path(args.file1)
     path2 = pathlib.Path(args.file2)

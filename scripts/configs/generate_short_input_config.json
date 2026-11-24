@@ -1,0 +1,12 @@
+{
+  "paths": {
+    "input_base_path": "./data/input",
+    "cache_base_path": "./data/cache"
+  },
+  "generation": {
+    "num_clients": 3,
+    "max_rows": 10000,
+    "bytes_per_row_en": 2391.2,
+    "bytes_per_row_fr": 793.5
+  }
+}

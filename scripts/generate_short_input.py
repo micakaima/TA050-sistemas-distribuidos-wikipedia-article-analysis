@@ -2,20 +2,46 @@ import argparse
 import os
 import shutil
 import kagglehub
+import json
 import pyarrow.parquet as pq
 
 KAGGLE_DATASET_BASE_PATH = "wikimedia-foundation/wikipedia-structured-contents"
 KAGGLE_EN_FILE_BASE_PATH = "enwiki/data/enwiki_namespace_0_"
 KAGGLE_FR_FILE_BASE_PATH = "frwiki/data/frwiki_namespace_0_"
-INPUT_BASE_PATH = "./data/input"
-CACHE_BASE_PATH = "./data/cache"
+DEFAULT_INPUT_BASE_PATH = "./data/input"
+DEFAULT_CACHE_BASE_PATH = "./data/cache"
 
-NUM_CLIENTS = 3
-MAX_ROWS = 30
+DEFAULT_NUM_CLIENTS = 3
+DEFAULT_MAX_ROWS = 10000
+
 # Factores de densidad promedio de Wikipedia (bytes comprimidos por fila completa)
-BYTES_PER_ROW_EN = 2391.2
-BYTES_PER_ROW_FR = 793.5
-BYTES_PER_COMBINED_ROW = BYTES_PER_ROW_EN + BYTES_PER_ROW_FR  # ~3184.7 bytes
+DEFAULT_BYTES_PER_ROW_EN = 2391.2
+DEFAULT_BYTES_PER_ROW_FR = 793.5
+DEFAULT_BYTES_PER_COMBINED_ROW = DEFAULT_BYTES_PER_ROW_EN + DEFAULT_BYTES_PER_ROW_FR  # ~3184.7 bytes
+
+CONFIG_FILE_PATH = "./scripts/configs/generate_short_input_config.json"
+
+def load_config(config_path=CONFIG_FILE_PATH):
+    if not os.path.exists(config_path):
+        raise FileNotFoundError("Config file not found")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    paths_cfg = data.get("paths", {})
+    gen_cfg = data.get("generation", {})
+    bytes_en = float(gen_cfg.get("bytes_per_row_en", DEFAULT_BYTES_PER_ROW_EN))
+    bytes_fr = float(gen_cfg.get("bytes_per_row_fr", DEFAULT_BYTES_PER_ROW_FR))
+
+    return {
+        "input_base_path": paths_cfg.get("input_base_path", DEFAULT_INPUT_BASE_PATH),
+        "cache_base_path": paths_cfg.get("cache_base_path", DEFAULT_CACHE_BASE_PATH),
+        "num_clients": int(gen_cfg.get("num_clients", DEFAULT_NUM_CLIENTS)),
+        "max_rows": int(gen_cfg.get("max_rows", DEFAULT_MAX_ROWS)),
+        "bytes_per_row_en": bytes_en,
+        "bytes_per_row_fr": bytes_fr,
+        "bytes_per_combined_row": bytes_en + bytes_fr,
+    }
 
 def parse_volume_to_bytes(vol_str):
     if not vol_str:
@@ -40,29 +66,29 @@ def parse_volume_to_bytes(vol_str):
     try:
         return int(float(vol_str))
     except ValueError:
-        raise ValueError(f"Formato de volumen inválido: '{vol_str}'. Ejemplos válidos: 50MB, 100M, 1.5GB, 500KB")
+        raise ValueError(f"Invalid volume format: '{vol_str}'. Valid examples: 50MB, 100M, 1.5GB, 500KB")
 
 # Permite generar archivos parquet de input truncados para un cliente/s con soporte de caché offline y definición por volumen.
 #   - Permite especificar el volumen directamente con '-v' / '--volume' (ej. 50MB) o '--volume-per-client' (ej. 20MB).
 #   - Calcula la cantidad de filas COMPLETAS requeridas garantizando que ningún registro quede truncado al medio.
 #   - Prioriza archivos pre-descargados en data/cache con fallback a kagglehub.
-def parse_arguments():
+def parse_arguments(config):
     parser = argparse.ArgumentParser(description="Generator of short datasets with cache and volume support")
     parser.add_argument("-c", "--client", type=int, default=None, help="Client ID (default: all clients)")
     parser.add_argument("-max", "--max_rows", type=int, default=None, help="Max complete rows per file")
     parser.add_argument("-v", "--volume", type=str, default=None, help="Total target dataset volume (e.g. 50MB, 100MB, 1GB)")
     parser.add_argument("--volume-per-client", type=str, default=None, help="Target volume per client (e.g. 20MB, 50MB)")
-    parser.add_argument("--clients", type=int, default=NUM_CLIENTS, help=f"Number of clients (default: {NUM_CLIENTS})")
-    parser.add_argument("--cache-dir", type=str, default=CACHE_BASE_PATH, help=f"Cache directory (default: {CACHE_BASE_PATH})")
+    parser.add_argument("--clients", type=int, default=config["num_clients"], help=f"Number of clients (default: {config["num_clients"]})")
+    parser.add_argument("--cache-dir", type=str, default=config["cache_base_path"], help=f"Cache directory (default: {config["cache_base_path"]})")
     parser.add_argument("--no-cache", action="store_true", help="Disable cache and force download via kagglehub")
     return parser.parse_args()
 
 
-def backup_existing_inputs_to_cache(cache_dir):
-    if not os.path.exists(INPUT_BASE_PATH):
+def backup_existing_inputs_to_cache(cache_dir, config):
+    if not os.path.exists(config["input_base_path"]):
         return
     os.makedirs(cache_dir, exist_ok=True)
-    for root, _, files in os.walk(INPUT_BASE_PATH):
+    for root, _, files in os.walk(config["input_base_path"]):
         for file in files:
             if file.endswith(".parquet") and not file.endswith("-truncated.parquet"):
                 src_path = os.path.join(root, file)
@@ -71,13 +97,13 @@ def backup_existing_inputs_to_cache(cache_dir):
                     print(f"[CACHE] Preserving existing dataset into cache: {file} ({os.path.getsize(src_path)} bytes)")
                     shutil.copy2(src_path, dest_path)
 
-def clean_old_inputs():
-    if os.path.exists(INPUT_BASE_PATH):
-        shutil.rmtree(INPUT_BASE_PATH)
-    os.makedirs(INPUT_BASE_PATH)
+def clean_old_inputs(config):
+    if os.path.exists(config["input_base_path"]):
+        shutil.rmtree(config["input_base_path"])
+    os.makedirs(config["input_base_path"])
 
-def create_client_dir(client_id):
-    client_dir_name = os.path.join(INPUT_BASE_PATH, f"input_{client_id}")
+def create_client_dir(client_id, config):
+    client_dir_name = os.path.join(config["input_base_path"], f"input_{client_id}")
     os.makedirs(client_dir_name, exist_ok=True)
     return client_dir_name
 
@@ -123,7 +149,7 @@ def shard_row_generator(file_base_path, cache_dir, use_cache):
             break
         shard_idx += 1
 
-def download_and_distribute(file_base_path, client_targets, lang, max_rows, cache_dir, use_cache):
+def download_and_distribute(file_base_path, client_targets, lang, max_rows, cache_dir, config, use_cache):
     if not client_targets:
         return
 
@@ -181,7 +207,8 @@ def download_and_distribute(file_base_path, client_targets, lang, max_rows, cach
         print(f"[INPUT] Created {output_filename} (parcial): {client_rows_written:,} complete rows ({size_mb:.2f} MB)")
 
 def main():
-    args = parse_arguments()
+    config = load_config()
+    args = parse_arguments(config)
     use_cache = not args.no_cache
 
     num_clients = 1 if args.client is not None else args.clients
@@ -197,29 +224,29 @@ def main():
     if target_bytes_per_client is not None:
         # Cada cliente recibe 1 archivo EN y 1 archivo FR con filas completas
         # Tamaño total esperado = filas * (BYTES_PER_ROW_EN + BYTES_PER_ROW_FR)
-        computed_rows = max(1, round(target_bytes_per_client / BYTES_PER_COMBINED_ROW))
+        computed_rows = max(1, round(target_bytes_per_client / config["bytes_per_combined_row"]))
         rows_to_generate = computed_rows
         target_mb = (target_bytes_per_client * num_clients) / (1024 * 1024)
-        print(f"[VOLUMEN] Objetivo: {target_mb:.2f} MB total (~{target_bytes_per_client / (1024*1024):.2f} MB/cliente) -> {rows_to_generate:,} filas completas por archivo")
+        print(f"[VOLUMEN] Objective: {target_mb:.2f} MB total (~{target_bytes_per_client / (1024*1024):.2f} MB/client) -> {rows_to_generate:,} completed rows per file")
     elif args.max_rows is not None:
         rows_to_generate = args.max_rows
     else:
-        rows_to_generate = MAX_ROWS
+        rows_to_generate = config["max_rows"]
 
     if use_cache:
-        backup_existing_inputs_to_cache(args.cache_dir)
+        backup_existing_inputs_to_cache(args.cache_dir, config)
 
-    clean_old_inputs()
+    clean_old_inputs(config)
 
     client_targets = []
     if args.client is not None:
-        client_targets.append((args.client, create_client_dir(args.client)))
+        client_targets.append((args.client, create_client_dir(args.client, config)))
     else:
         for c in range(args.clients):
-            client_targets.append((c, create_client_dir(c)))
+            client_targets.append((c, create_client_dir(c, config)))
 
-    download_and_distribute(KAGGLE_EN_FILE_BASE_PATH, client_targets, "en", rows_to_generate, args.cache_dir, use_cache)
-    download_and_distribute(KAGGLE_FR_FILE_BASE_PATH, client_targets, "fr", rows_to_generate, args.cache_dir, use_cache)
+    download_and_distribute(KAGGLE_EN_FILE_BASE_PATH, client_targets, "en", rows_to_generate, args.cache_dir, config, use_cache)
+    download_and_distribute(KAGGLE_FR_FILE_BASE_PATH, client_targets, "fr", rows_to_generate, args.cache_dir, config, use_cache)
 
     total_bytes = 0
     total_files = 0
@@ -231,7 +258,7 @@ def main():
                 total_files += 1
 
     total_mb = total_bytes / (1024 * 1024)
-    print(f"[INPUT RESUMEN] Total generado: {total_mb:.2f} MB en {total_files} archivos ({total_bytes:,} bytes)")
+    print(f"[INPUT RESUMEN] Total generated: {total_mb:.2f} MB in {total_files} file/s ({total_bytes:,} bytes)")
 
 if __name__ == "__main__":
     main()

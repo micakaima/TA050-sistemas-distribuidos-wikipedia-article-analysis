@@ -1,0 +1,10 @@
+{
+  "paths": {
+    "input_base_path": "./data/input"
+  },
+  "generation": {
+    "num_clients": 3,
+    "en_files_sample_amount": 2,
+    "fr_files_sample_amount": 2
+  }
+}

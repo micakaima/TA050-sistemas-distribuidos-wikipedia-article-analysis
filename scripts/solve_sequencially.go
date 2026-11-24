@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,32 +25,65 @@ import (
 )
 
 const (
-	PUNCTUATION_SYMBOLS            = "-.,():;!?[]{}'\""
-	SPLITTER_YEAR                  = 2020
-	QUERY1_OUTPUT_FILENAME         = "query_1_result.txt"
-	QUERY2_OUTPUT_FILENAME         = "query_2_result.txt"
-	QUERY3_OUTPUT_FILENAME         = "query_3_result.txt"
-	QUERY4_OUTPUT_FILENAME         = "query_4_result.txt"
-	QUERY5_OUTPUT_FILENAME         = "query_5_result.txt"
-	MAX_CONCURRENT_IMAGE_DOWNLOADS = 3
+	PUNCTUATION_SYMBOLS                    = "-.,():;!?[]{}'\""
+	SPLITTER_YEAR                          = 2020
+	QUERY1_OUTPUT_FILENAME                 = "query_1_result.txt"
+	QUERY2_OUTPUT_FILENAME                 = "query_2_result.txt"
+	QUERY3_OUTPUT_FILENAME                 = "query_3_result.txt"
+	QUERY4_OUTPUT_FILENAME                 = "query_4_result.txt"
+	QUERY5_OUTPUT_FILENAME                 = "query_5_result.txt"
+	DEFAULT_MAX_CONCURRENT_IMAGE_DOWNLOADS = 3
+	CONFIG_PATH                            = "./scripts/configs/solve_sequencially_config.json"
 )
 
-func parseArguments() (string, string, int, error) {
+type Config struct {
+	InputDir                    string `json:"inputDir"`
+	OutputDir                   string `json:"outputDir"`
+	NumRows                     int    `json:"numRows"`
+	MaxConcurrentImageDownloads int    `json:"maxConcurrentImageDownloads"`
+}
+
+func loadConfig(path string) (Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Config{}, fmt.Errorf("[ERROR] Could not read config file %q: %w", path, err)
+	}
+
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return Config{}, fmt.Errorf("[ERROR] Invalid JSON in %q: %w", path, err)
+	}
+
+	if cfg.InputDir == "" || cfg.OutputDir == "" || cfg.NumRows <= 0 {
+		return Config{}, fmt.Errorf("[ERROR] Config file %q must define inputDir, outputDir, and positive numRows", path)
+	}
+
+	return cfg, nil
+}
+
+func parseArguments() (string, string, int, int, error) {
 	args := os.Args[1:]
+	if len(args) == 0 {
+		cfg, err := loadConfig(CONFIG_PATH)
+		if err != nil {
+			return "", "", 0, 0, err
+		}
+		return cfg.InputDir, cfg.OutputDir, cfg.NumRows, cfg.MaxConcurrentImageDownloads, nil
+	}
 	if len(args) != 3 {
-		return "", "", 0, fmt.Errorf("[ERROR] Not enough arguments: arg1=INPUT_DIR, arg2=OUTPUT_DIR, arg3=NUM_ROWS")
+		return "", "", 0, 0, fmt.Errorf("[ERROR] Not enough arguments: arg1=INPUT_DIR, arg2=OUTPUT_DIR, arg3=NUM_ROWS")
 	}
 	inputDir := args[0]
 	outputDir := args[1]
 	numRows, err := strconv.Atoi(args[2])
 	if err != nil {
-		return "", "", 0, fmt.Errorf("[ERROR] NUM_ROWS must be a valid number")
+		return "", "", 0, 0, fmt.Errorf("[ERROR] NUM_ROWS must be a valid number")
 	}
-	return inputDir, outputDir, numRows, nil
+	return inputDir, outputDir, numRows, DEFAULT_MAX_CONCURRENT_IMAGE_DOWNLOADS, nil
 }
 
 func main() {
-	inputDir, outputDir, numRows, err := parseArguments()
+	inputDir, outputDir, numRows, maxConcurrentImageDownloads, err := parseArguments()
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -60,16 +94,16 @@ func main() {
 		return
 	}
 
-	solveQ1ToQ2(records, outputDir)
+	solveQ1ToQ2(records, outputDir, maxConcurrentImageDownloads)
 	solveQ3ToQ5(records, numRows, outputDir)
 }
 
-func solveQ1ToQ2(records []record.Record, outputDir string) {
+func solveQ1ToQ2(records []record.Record, outputDir string, maxConcurrentImageDownloads int) {
 	english2020Articles := obtainEnglish2020Articles(records)
 	outputPathQ1 := filepath.Join(outputDir, QUERY1_OUTPUT_FILENAME)
 	saveQ1Result(outputPathQ1, english2020Articles)
 
-	obtainBio2020Articles, err := obtainBio2020Articles(records)
+	obtainBio2020Articles, err := obtainBio2020Articles(records, maxConcurrentImageDownloads)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -279,7 +313,7 @@ func fetchCandidateImage(client *http.Client, cand *messages.ImageCandidate, max
 	return nil, fmt.Errorf(download.ExternalAPIError, download.FailedAllAttemptsError).Error()
 }
 
-func obtainBio2020Articles(records []record.Record) ([]qresult.ImageArticle, error) {
+func obtainBio2020Articles(records []record.Record, maxConcurrentImageDownloads int) ([]qresult.ImageArticle, error) {
 	candidates := make([]*messages.ImageCandidate, 0)
 	for _, r := range records {
 		year := time.UnixMilli(r.DateModified).UTC().Year()
@@ -295,7 +329,7 @@ func obtainBio2020Articles(records []record.Record) ([]qresult.ImageArticle, err
 	}
 
 	bio2020Articles := make([]qresult.ImageArticle, len(candidates))
-	sem := make(chan struct{}, MAX_CONCURRENT_IMAGE_DOWNLOADS)
+	sem := make(chan struct{}, maxConcurrentImageDownloads)
 	rateLimiter := time.NewTicker(250 * time.Millisecond)
 	defer rateLimiter.Stop()
 	var wg sync.WaitGroup

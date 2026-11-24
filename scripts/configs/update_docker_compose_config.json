@@ -1,0 +1,30 @@
+{
+    "nodes": {
+        "cant_clients": 3,
+        "cant_column_filters": 2,
+        "cant_vocabulary_extractors": 2,
+        "cant_year_filters": 2,
+        "cant_english_filters": 2,
+        "cant_bio_filters": 2,
+        "cant_image_downloaders": 2,
+        "cant_year_splitters": 2,
+        "cant_old_articles_averagers": 2,
+        "cant_above_average_filters": 2,
+        "cant_shared_words_aggregators": 2,
+        "cant_partial_top_aggregators": 2
+    },
+    "connection": {
+        "connection_attempts": 10,
+        "connection_attempts_delay_ms": 1000
+    },
+    "batch_sizes": {
+        "client_batch_size": 50,
+        "above_average_filter_batch_size": 1000
+    },
+    "download": {
+        "max_download_retries": 3,
+        "client_timeout": 10,
+        "user_agent": "Wikipedia-Article-Analysis/1.0"
+    },
+    "output_filename": "docker-compose.yaml"
+}

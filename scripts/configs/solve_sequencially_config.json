@@ -1,0 +1,6 @@
+{
+  "inputDir": "./data/input/input_2",
+  "outputDir": "./data/expected_results/results_2",
+  "numRows": 10000,
+  "maxConcurrentImageDownloads": 3
+}
