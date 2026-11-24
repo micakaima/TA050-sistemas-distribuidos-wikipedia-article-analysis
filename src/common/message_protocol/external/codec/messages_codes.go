@@ -14,6 +14,7 @@ const (
 	EOF
 	Ack
 	QueryResult
+	Redirect
 	Unknown
 )
 

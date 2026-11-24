@@ -44,16 +44,21 @@ func loadConfig() (aggregator.Config[*qresults.English2020Article], error) {
 		}
 	}
 
+	gatewayPrefix := os.Getenv("GATEWAY_PREFIX")
+	if gatewayPrefix == "" {
+		return aggregator.Config[*qresults.English2020Article]{}, errors.New("GATEWAY_PREFIX environment variable is required")
+	}
+
 	return aggregator.Config[*qresults.English2020Article]{
 		MomHost:         momHost,
 		MomPort:         momPort,
 		InputQueue:      inputQueue,
-		OutputQueue:     outputQueue,
 		StorageDir:      storageDir,
 		StorageName:     "q1",
 		QueryCode:       qresults.Q1Code,
 		ExpectedMsgCode: messages.Q1ResultCode,
 		ExpectedEOFs:    expectedEOFs,
+		GatewayPrefix:   gatewayPrefix,
 		Handler:         &qresults.Q1Result{},
 	}, nil
 

@@ -44,16 +44,21 @@ func loadConfig() (aggregator.Config[*qresults.AboveAverageArticle], error) {
 		}
 	}
 
+	gatewayPrefix := os.Getenv("GATEWAY_PREFIX")
+	if gatewayPrefix == "" {
+		return aggregator.Config[*qresults.AboveAverageArticle]{}, errors.New("GATEWAY_PREFIX environment variable is required")
+	}
+
 	return aggregator.Config[*qresults.AboveAverageArticle]{
 		MomHost:         momHost,
 		MomPort:         momPort,
 		InputQueue:      inputQueue,
-		OutputQueue:     outputQueue,
 		StorageDir:      storageDir,
 		StorageName:     "q5",
 		QueryCode:       qresults.Q5Code,
 		ExpectedMsgCode: messages.Q5ResultCode,
 		ExpectedEOFs:    expectedEOFs,
+		GatewayPrefix:   gatewayPrefix,
 		Handler:         &qresults.Q5Result{},
 	}, nil
 }

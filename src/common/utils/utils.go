@@ -1,12 +1,16 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"sync"
 )
 
 const FIXED_SEED = "42"
+const GATEWAY_BITS = 16
+const CLIENT_BITS = 64 - GATEWAY_BITS // 48 bits
 
 func SpawnWithWG(wg *sync.WaitGroup, fn func()) {
 	wg.Add(1)
@@ -32,7 +36,7 @@ func GenerateRoutingKey(prefix string, id int) string {
 	return fmt.Sprintf("%s_%d", prefix, id)
 }
 
-func GetTargetNode(clientId uint64, amountNodes int) int {
+func GetTargetNodeByClientID(clientId uint64, amountNodes int) int {
 	h := fnv.New64a()
 	h.Write([]byte(FIXED_SEED))
 	fmt.Fprintf(h, "-%d", clientId)
@@ -61,4 +65,16 @@ func GetTargetNodeByArticleID(articleID string, amount int) int {
 
 	hashValue := h.Sum64()
 	return int(hashValue % uint64(amount))
+}
+
+func GenerateClientId(gatewayID uint16) uint64 {
+	var b [8]byte
+	rand.Read(b[:])
+	clientMask := (uint64(1) << CLIENT_BITS) - 1
+	randomPart := binary.BigEndian.Uint64(b[:]) & clientMask
+	return (uint64(gatewayID) << CLIENT_BITS) | randomPart
+}
+
+func ExtractGatewayId(clientID uint64) uint16 {
+	return uint16(clientID >> CLIENT_BITS)
 }

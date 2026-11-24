@@ -1,6 +1,7 @@
 {
     "nodes": {
         "cant_clients": 3,
+        "cant_gateways": 2,
         "cant_column_filters": 2,
         "cant_vocabulary_extractors": 2,
         "cant_year_filters": 2,

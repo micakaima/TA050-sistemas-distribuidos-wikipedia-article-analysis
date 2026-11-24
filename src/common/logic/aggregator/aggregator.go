@@ -19,23 +19,24 @@ type Config[T generic.SerializableMessage] struct {
 	MomHost         string
 	MomPort         int
 	InputQueue      string
-	OutputQueue     string
 	StorageDir      string
 	StorageName     string
 	QueryCode       qresults.QueryResultCode
 	ExpectedMsgCode messages.InnerMsgCode
 	ExpectedEOFs    int
 	Handler         qresults.QueryResultHandler[T]
+	GatewayPrefix   string
 }
 
 type Aggregator[T generic.SerializableMessage] struct {
 	inputQueue      middleware.Middleware
-	outputQueue     middleware.Middleware
+	outputExchange  middleware.ExchangeMiddleware
 	storage         *Storage
 	queryCode       qresults.QueryResultCode
 	expectedMsgCode messages.InnerMsgCode
 	expectedEOFs    int
 	handler         qresults.QueryResultHandler[T]
+	gatewayPrefix   string
 
 	mu           sync.Mutex
 	eofsReceived map[uint64]int
@@ -50,7 +51,7 @@ func New[T generic.SerializableMessage](config Config[T]) (*Aggregator[T], error
 		return nil, err
 	}
 
-	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, settings)
+	outputExchange, err := middleware.CreateExchangeMiddleware(config.GatewayPrefix, []string{}, settings)
 	if err != nil {
 		inputQueue.Close()
 		return nil, err
@@ -63,12 +64,13 @@ func New[T generic.SerializableMessage](config Config[T]) (*Aggregator[T], error
 
 	return &Aggregator[T]{
 		inputQueue:      inputQueue,
-		outputQueue:     outputQueue,
+		outputExchange:  outputExchange,
 		storage:         NewStorage(config.StorageName, config.StorageDir),
 		queryCode:       config.QueryCode,
 		expectedMsgCode: config.ExpectedMsgCode,
 		expectedEOFs:    expectedEOFs,
 		handler:         config.Handler,
+		gatewayPrefix:   config.GatewayPrefix,
 		eofsReceived:    make(map[uint64]int),
 		clientDone:      make(map[uint64]bool),
 	}, nil
@@ -97,7 +99,7 @@ func (w *Aggregator[T]) shutdown() {
 	if err := w.inputQueue.Close(); err != nil {
 		slog.Error("While closing input queue", "err", err)
 	}
-	if err := w.outputQueue.Close(); err != nil {
+	if err := w.outputExchange.Close(); err != nil {
 		slog.Error("While closing output queue", "err", err)
 	}
 }
@@ -206,7 +208,7 @@ func (w *Aggregator[T]) publishQueryResult(clientID uint64, result *qresults.Que
 		MsgCode:  messages.ResultCode,
 		Body:     resultBytes,
 	}
-	if err := w.outputQueue.Send(message); err != nil {
+	if err := w.sendToGateway(clientID, message); err != nil {
 		return err
 	}
 	slog.Info("[AGGREGATOR] Query resolved and published to gateway", "query", w.queryCode, "client", clientID)
@@ -220,8 +222,16 @@ func (w *Aggregator[T]) sendEOF(clientID uint64) {
 		slog.Error("While creating EOF message", "err", err)
 		return
 	}
-	if err := w.outputQueue.Send(*eofMessage); err != nil {
+	if err := w.sendToGateway(clientID, *eofMessage); err != nil {
 		slog.Error("While sending EOF message", "err", err)
-		return
 	}
+}
+
+func (w *Aggregator[T]) sendToGateway(clientID uint64, message middleware.Message) error {
+	targetNode := utils.ExtractGatewayId(clientID)
+	routingKey := utils.GenerateRoutingKey(w.gatewayPrefix, int(targetNode))
+	if err := w.outputExchange.SendToKey(message, routingKey); err != nil {
+		return err
+	}
+	return nil
 }

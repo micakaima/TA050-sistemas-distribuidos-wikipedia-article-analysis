@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -21,8 +22,8 @@ import (
 )
 
 type ClientConfig struct {
-	ServerHost                string
-	ServerPort                string
+	LoadBalancerHost          string
+	LoadBalancerPort          string
 	InputDir                  string
 	OutputDir                 string
 	BatchSize                 uint32
@@ -37,7 +38,11 @@ type Client struct {
 }
 
 func NewClient(config ClientConfig) (*Client, error) {
-	conn, err := connectToServer(config.ServerHost, config.ServerPort, config.ConnectionAttempts, config.ConnectionAttemptsDelayMs)
+	serverHost, serverPort, err := obtainGateway(config)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := connectTo(serverHost, serverPort, config.ConnectionAttempts, config.ConnectionAttemptsDelayMs)
 	if err != nil {
 		return nil, err
 	}
@@ -46,14 +51,30 @@ func NewClient(config ClientConfig) (*Client, error) {
 	return client, nil
 }
 
-func connectToServer(host, port string, connectionAttempts int, connectionAttemptsDelayMs int) (net.Conn, error) {
+func obtainGateway(config ClientConfig) (string, string, error) {
+	loadBalancerConn, err := connectTo(config.LoadBalancerHost, config.LoadBalancerPort, config.ConnectionAttempts, config.ConnectionAttemptsDelayMs)
+	if err != nil {
+		return "", "", err
+	}
+	if err := expectMsgType(loadBalancerConn, external.Redirect); err != nil {
+		return "", "", err
+	}
+	serverHost, serverPort, err := external.ReadRedirect(loadBalancerConn)
+	if err != nil {
+		return "", "", err
+	}
+	serverPortStr := strconv.Itoa(serverPort)
+	return serverHost, serverPortStr, nil
+}
+
+func connectTo(host, port string, connectionAttempts int, connectionAttemptsDelayMs int) (net.Conn, error) {
 	var err error
 	var conn net.Conn
 
 	for range connectionAttempts {
 		conn, err = net.Dial("tcp", host+":"+port)
 		if err != nil {
-			slog.Warn("Retrying connection...")
+			slog.Warn(fmt.Sprintf("Retrying connection to %s...", host))
 			time.Sleep(time.Duration(connectionAttemptsDelayMs) * time.Millisecond)
 			continue
 		}
@@ -61,6 +82,18 @@ func connectToServer(host, port string, connectionAttempts int, connectionAttemp
 	}
 
 	return conn, err
+}
+
+func expectMsgType(conn net.Conn, expectedMsgCode external.ExternalMsgCode) error {
+	msgCode, err := external.ReadMsgCode(conn)
+	if err != nil {
+		slog.Error("While reading message type", "err", err)
+		return err
+	}
+	if msgCode != expectedMsgCode {
+		return fmt.Errorf(UnexpectedMsgError)
+	}
+	return nil
 }
 
 func (client *Client) Run() error {
@@ -99,18 +132,6 @@ func (client *Client) handleSignals(done chan struct{}) {
 			return
 		}
 	}()
-}
-
-func (client *Client) expectMsgType(expectedMsgCode external.ExternalMsgCode) error {
-	msgCode, err := external.ReadMsgCode(client.conn)
-	if err != nil {
-		slog.Error("While reading message type", "err", err)
-		return err
-	}
-	if msgCode != expectedMsgCode {
-		return fmt.Errorf(UnexpectedMsgError)
-	}
-	return nil
 }
 
 func (client *Client) sendWikiRecords() error {
@@ -169,7 +190,7 @@ func (client *Client) flushArticlesBatch(batch article.RawArticlesBatch) error {
 		if err := external.WriteArticlesBatch(client.conn, batch); err != nil {
 			return err
 		}
-		if err := client.expectMsgType(external.Ack); err != nil {
+		if err := expectMsgType(client.conn, external.Ack); err != nil {
 			return err
 		}
 	}
@@ -180,7 +201,7 @@ func (client *Client) sendEOF() error {
 	if err := external.WriteEOF(client.conn); err != nil {
 		return err
 	}
-	if err := client.expectMsgType(external.Ack); err != nil {
+	if err := expectMsgType(client.conn, external.Ack); err != nil {
 		return err
 	}
 	return nil

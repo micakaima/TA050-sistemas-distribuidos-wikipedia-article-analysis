@@ -10,6 +10,11 @@ import (
 )
 
 func loadConfig() (gateway.GatewayConfig, error) {
+	id, err := strconv.Atoi(os.Getenv("ID"))
+	if err != nil {
+		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "ID")
+	}
+
 	serverHost := os.Getenv("SERVER_HOST")
 	if serverHost == "" {
 		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "SERVER_HOST")
@@ -45,14 +50,20 @@ func loadConfig() (gateway.GatewayConfig, error) {
 		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "MOM_PORT")
 	}
 
+	gatewayPrefix := os.Getenv("GATEWAY_PREFIX")
+	if gatewayPrefix == "" {
+		return gateway.GatewayConfig{}, fmt.Errorf(gateway.ConfigSetupError, "GATEWAY_PREFIX")
+	}
+
 	return gateway.GatewayConfig{
+		Id:                 id,
 		ServerHost:         serverHost,
 		ServerPort:         serverPort,
 		ColumnFilterAmount: columnFilterAmount,
 		ColumnFilterPrefix: columnFilterPrefix,
-		OutputQueueName:    outputQueueName,
 		MomHost:            momHost,
 		MomPort:            momPort,
+		GatewayPrefix:      gatewayPrefix,
 		ExpectedQueries:    5,
 	}, nil
 

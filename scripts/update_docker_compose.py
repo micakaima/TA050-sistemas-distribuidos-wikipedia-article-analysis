@@ -2,29 +2,6 @@ import yaml, os, json
 
 CONFIG_FILE_PATH = "./scripts/configs/update_docker_compose_config.json"
 
-DEFAULT_CANT_CLIENTS = 3
-DEFAULT_CANT_COLUMN_FILTERS = 2
-DEFAULT_CANT_VOCABULARY_EXTRACTORS = 2
-DEFAULT_CANT_YEAR_FILTERS = 2
-DEFAULT_CANT_ENGLISH_FILTERS = 2
-DEFAULT_CANT_BIO_FILTERS = 2
-DEFAULT_CANT_IMAGE_DOWNLOADERS = 2
-DEFAULT_CANT_YEAR_SPLITTERS = 2
-DEFAULT_CANT_OLD_ARTICLES_AVERAGERS = 2
-DEFAULT_CANT_ABOVE_AVERAGE_FILTERS = 2
-DEFAULT_CANT_SHARED_WORDS_AGGREGATORS = 2
-DEFAULT_CANT_PARTIAL_TOP_AGGREGATORS = 2
-
-DEFAULT_CONNECTION_ATTEMPS=10
-DEFAULT_CONNECTION_ATTEMPTS_DELAY_MS=1000
-DEFAULT_CLIENT_BATCH_SIZE=5
-DEFAULT_ABOVE_AVERAGE_FILTER_BATCH_SIZE=1000
-DEFAULT_MAX_DOWNLOAD_RETRIES=3
-DEFAULT_CLIENT_TIMEOUT=10
-DEFAULT_USER_AGENT="Wikipedia-Article-Analysis/1.0"
-
-DEFAULT_OUTPUT_FILENAME="docker-compose.yaml"
-
 def load_config(config_path=CONFIG_FILE_PATH):
     if not os.path.exists(config_path):
         raise FileNotFoundError("Config file not found")
@@ -32,38 +9,22 @@ def load_config(config_path=CONFIG_FILE_PATH):
     with open(config_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    nodes_cfg = data.get("nodes", {})
-    connection_cfg = data.get("connection", {})
-    batch_sizes_cfg = data.get("batch_sizes", {})
-    download_cfg = data.get("download", {})
+    return flatten_dict(data)
 
-    return {
-        "cant_clients": nodes_cfg.get("cant_clients", DEFAULT_CANT_CLIENTS),
-        "cant_column_filters": nodes_cfg.get("cant_column_filters", DEFAULT_CANT_COLUMN_FILTERS),
-        "cant_vocabulary_extractors": nodes_cfg.get("cant_vocabulary_extractors", DEFAULT_CANT_VOCABULARY_EXTRACTORS),
-        "cant_year_filters": nodes_cfg.get("cant_year_filters", DEFAULT_CANT_YEAR_FILTERS),
-        "cant_english_filters": nodes_cfg.get("cant_english_filters", DEFAULT_CANT_ENGLISH_FILTERS),
-        "cant_bio_filters": nodes_cfg.get("cant_bio_filters", DEFAULT_CANT_BIO_FILTERS),
-        "cant_image_downloaders": nodes_cfg.get("cant_image_downloaders", DEFAULT_CANT_IMAGE_DOWNLOADERS),
-        "cant_year_splitters": nodes_cfg.get("cant_year_splitters", DEFAULT_CANT_YEAR_SPLITTERS),
-        "cant_old_articles_averagers": nodes_cfg.get("cant_old_articles_averagers", DEFAULT_CANT_OLD_ARTICLES_AVERAGERS),
-        "cant_above_average_filters": nodes_cfg.get("cant_above_average_filters", DEFAULT_CANT_ABOVE_AVERAGE_FILTERS),
-        "cant_shared_words_aggregators": nodes_cfg.get("cant_shared_words_aggregators", DEFAULT_CANT_SHARED_WORDS_AGGREGATORS),
-        "cant_partial_top_aggregators": nodes_cfg.get("cant_partial_top_aggregators", DEFAULT_CANT_PARTIAL_TOP_AGGREGATORS),
-        "connection_attempts": connection_cfg.get("connection_attempts", DEFAULT_CONNECTION_ATTEMPS),
-        "connection_attempts_delay_ms": connection_cfg.get("connection_attempts_delay_ms", DEFAULT_CONNECTION_ATTEMPTS_DELAY_MS),
-        "client_batch_size": batch_sizes_cfg.get("client_batch_size", DEFAULT_CLIENT_BATCH_SIZE),
-        "above_average_filter_batch_size": batch_sizes_cfg.get("above_average_filter_batch_size", DEFAULT_ABOVE_AVERAGE_FILTER_BATCH_SIZE),
-        "max_download_retries": download_cfg.get("max_download_retries", DEFAULT_MAX_DOWNLOAD_RETRIES),
-        "client_timeout": download_cfg.get("client_timeout", DEFAULT_CLIENT_TIMEOUT),
-        "user_agent": download_cfg.get("user_agent", DEFAULT_USER_AGENT),
-        "output_filename": data.get("output_filename", DEFAULT_OUTPUT_FILENAME)
-    }
+def flatten_dict(d, result=None):
+    if result is None:
+        result = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            flatten_dict(v, result)
+        else:
+            result[k] = v
+    return result
 
 def generate_client_containers(docker_compose, config):
     for i in range(config["cant_clients"]):
         container_name = f"client_{i}"
-        depends_list = ["gateway"] + [f"column_filter_{j}" for j in range(config["cant_column_filters"])]
+        depends_list = ["load_balancer"]
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",
@@ -74,8 +35,8 @@ def generate_client_containers(docker_compose, config):
             "environment": [
                 f"INPUT_DIR=/input/input_{i}",
                 f"OUTPUT_DIR=/output/output_{i}",
-                "SERVER_HOST=gateway",
-                "SERVER_PORT=5678",
+                "LOAD_BALANCER_HOST=load_balancer",
+                "LOAD_BALANCER_PORT=5678",
                 f"CONNECTION_ATTEMPS={config["connection_attempts"]}",
                 f"CONNECTION_ATTEMPTS_DELAY_MS={config["connection_attempts_delay_ms"]}",
                 f"BATCH_SIZE={config["client_batch_size"]}"
@@ -338,7 +299,8 @@ def generate_result_aggregators(docker_compose, config):
             "MOM_PORT=5672",
             f"INPUT_QUEUE={input_queue}",
             "OUTPUT_QUEUE=results",
-            "STORAGE_DIR=/app/storage"
+            "STORAGE_DIR=/app/storage",
+            "GATEWAY_PREFIX=gateway"
         ]
         if i == 1:
             environment_vars.append(f"ENGLISH_FILTER_AMOUNT={config["cant_english_filters"]}")
@@ -350,15 +312,14 @@ def generate_result_aggregators(docker_compose, config):
             environment_vars.append(f"PARTIAL_TOP_AGGREGATOR_AMOUNT={config["cant_partial_top_aggregators"]}")
         elif i == 5:
             environment_vars.append(f"ABOVE_AVERAGE_FILTER_AMOUNT={config["cant_above_average_filters"]}")
+        depends_list = [f"gateway_{j}" for j in range(config["cant_gateways"])]
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",
                 "dockerfile": f"src/workers/result_aggregator/q{i}_result_aggregator/Dockerfile"
             },
             "container_name": container_name,
-            "depends_on": [
-                "gateway"
-            ],
+            "depends_on": depends_list,
             "volumes": [
                 "./data/storage:/app/storage",
             ],
@@ -392,27 +353,51 @@ def generate_year_splitter_containers(docker_compose, config):
             ]
         }
 
-def generate_gateway_container(docker_compose, config):
-    container_name = "gateway"
+def generate_gateway_containers(docker_compose, config):
+    for i in range(config["cant_gateways"]):
+        container_name = f"gateway_{i}"    
+        docker_compose["services"][container_name] = {
+            "build": {
+                "context": ".",
+                "dockerfile": "src/gateway/Dockerfile",
+            },
+            "container_name": container_name,
+            "depends_on": {
+                "rabbitmq": {
+                    "condition": "service_healthy"
+                }
+            },
+            "environment": [
+                f"ID={i}",
+                f"SERVER_HOST=gateway_{i}",
+                "SERVER_PORT=5679",
+                "OUTPUT_QUEUE=results",
+                "MOM_HOST=rabbitmq",
+                "MOM_PORT=5672",
+                f"COLUMN_FILTER_AMOUNT={config["cant_column_filters"]}",
+                "COLUMN_FILTER_PREFIX=raw_articles",
+                "GATEWAY_PREFIX=gateway"
+            ]
+        }
+
+def generate_load_balancer(docker_compose, config):
+    container_name = "load_balancer"
+    depends_list = [f"gateway_{j}" for j in range(config["cant_gateways"])]
+    for k in range(config["cant_column_filters"]):
+        depends_list.append(f"column_filter_{k}")
     docker_compose["services"][container_name] = {
         "build": {
             "context": ".",
-            "dockerfile": "src/gateway/Dockerfile",
+            "dockerfile": "src/load_balancer/Dockerfile",
         },
         "container_name": container_name,
-        "depends_on": {
-            "rabbitmq": {
-                "condition": "service_healthy"
-            }
-        },
+        "depends_on": depends_list,
         "environment": [
-            "SERVER_HOST=gateway",
-            "SERVER_PORT=5678",
-            "OUTPUT_QUEUE=results",
-            "MOM_HOST=rabbitmq",
-            "MOM_PORT=5672",
-            f"COLUMN_FILTER_AMOUNT={config["cant_column_filters"]}",
-            "COLUMN_FILTER_PREFIX=raw_articles"
+            "LOAD_BALANCER_HOST=load_balancer",
+            "LOAD_BALANCER_PORT=5678",
+            "BASE_SERVER_HOST=gateway",
+            "BASE_SERVER_PORT=5679",
+            f"GATEWAY_AMOUNT={config["cant_gateways"]}"
         ]
     }
 
@@ -448,7 +433,8 @@ def main():
     }
 
     generate_client_containers(docker_compose, config)
-    generate_gateway_container(docker_compose, config)
+    generate_gateway_containers(docker_compose, config)
+    generate_load_balancer(docker_compose, config)
     generate_rabbitmq_container(docker_compose)
     generate_column_filter_containers(docker_compose, config)
     generate_vocabulary_extractor_containers(docker_compose, config)

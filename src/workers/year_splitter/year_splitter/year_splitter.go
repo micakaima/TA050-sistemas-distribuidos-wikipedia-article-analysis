@@ -211,7 +211,7 @@ func splitByYear(wordCountBatch generic.Batch[*messages.WordCount]) (generic.Bat
 }
 
 func (w *YearSplitterWorker) sendToOldAverager(clientID uint64, msg middleware.Message) error {
-	targetNode := utils.GetTargetNode(clientID, w.oldArticlesAveragerAmount)
+	targetNode := utils.GetTargetNodeByClientID(clientID, w.oldArticlesAveragerAmount)
 	routingKey := utils.GenerateRoutingKey(w.oldArticlesAveragerPrefix, targetNode)
 	if err := w.outputExchangeOld.SendToKey(msg, routingKey); err != nil {
 		return err

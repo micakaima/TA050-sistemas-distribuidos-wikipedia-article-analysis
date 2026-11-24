@@ -5,14 +5,12 @@ services:
       dockerfile: src/client/Dockerfile
     container_name: client_0
     depends_on:
-    - gateway
-    - column_filter_0
-    - column_filter_1
+    - load_balancer
     environment:
     - INPUT_DIR=/input/input_0
     - OUTPUT_DIR=/output/output_0
-    - SERVER_HOST=gateway
-    - SERVER_PORT=5678
+    - LOAD_BALANCER_HOST=load_balancer
+    - LOAD_BALANCER_PORT=5678
     - CONNECTION_ATTEMPS=10
     - CONNECTION_ATTEMPTS_DELAY_MS=1000
     - BATCH_SIZE=50
@@ -25,14 +23,12 @@ services:
       dockerfile: src/client/Dockerfile
     container_name: client_1
     depends_on:
-    - gateway
-    - column_filter_0
-    - column_filter_1
+    - load_balancer
     environment:
     - INPUT_DIR=/input/input_1
     - OUTPUT_DIR=/output/output_1
-    - SERVER_HOST=gateway
-    - SERVER_PORT=5678
+    - LOAD_BALANCER_HOST=load_balancer
+    - LOAD_BALANCER_PORT=5678
     - CONNECTION_ATTEMPS=10
     - CONNECTION_ATTEMPTS_DELAY_MS=1000
     - BATCH_SIZE=50
@@ -45,36 +41,70 @@ services:
       dockerfile: src/client/Dockerfile
     container_name: client_2
     depends_on:
-    - gateway
-    - column_filter_0
-    - column_filter_1
+    - load_balancer
     environment:
     - INPUT_DIR=/input/input_2
     - OUTPUT_DIR=/output/output_2
-    - SERVER_HOST=gateway
-    - SERVER_PORT=5678
+    - LOAD_BALANCER_HOST=load_balancer
+    - LOAD_BALANCER_PORT=5678
     - CONNECTION_ATTEMPS=10
     - CONNECTION_ATTEMPTS_DELAY_MS=1000
     - BATCH_SIZE=50
     volumes:
     - ./data/input:/input
     - ./data/output:/output
-  gateway:
+  gateway_0:
     build:
       context: .
       dockerfile: src/gateway/Dockerfile
-    container_name: gateway
+    container_name: gateway_0
     depends_on:
       rabbitmq:
         condition: service_healthy
     environment:
-    - SERVER_HOST=gateway
-    - SERVER_PORT=5678
+    - ID=0
+    - SERVER_HOST=gateway_0
+    - SERVER_PORT=5679
     - OUTPUT_QUEUE=results
     - MOM_HOST=rabbitmq
     - MOM_PORT=5672
     - COLUMN_FILTER_AMOUNT=2
     - COLUMN_FILTER_PREFIX=raw_articles
+    - GATEWAY_PREFIX=gateway
+  gateway_1:
+    build:
+      context: .
+      dockerfile: src/gateway/Dockerfile
+    container_name: gateway_1
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+    - ID=1
+    - SERVER_HOST=gateway_1
+    - SERVER_PORT=5679
+    - OUTPUT_QUEUE=results
+    - MOM_HOST=rabbitmq
+    - MOM_PORT=5672
+    - COLUMN_FILTER_AMOUNT=2
+    - COLUMN_FILTER_PREFIX=raw_articles
+    - GATEWAY_PREFIX=gateway
+  load_balancer:
+    build:
+      context: .
+      dockerfile: src/load_balancer/Dockerfile
+    container_name: load_balancer
+    depends_on:
+    - gateway_0
+    - gateway_1
+    - column_filter_0
+    - column_filter_1
+    environment:
+    - LOAD_BALANCER_HOST=load_balancer
+    - LOAD_BALANCER_PORT=5678
+    - BASE_SERVER_HOST=gateway
+    - BASE_SERVER_PORT=5679
+    - GATEWAY_AMOUNT=2
   rabbitmq:
     build:
       context: ./src/rabbitmq
@@ -484,7 +514,8 @@ services:
       dockerfile: src/workers/result_aggregator/q1_result_aggregator/Dockerfile
     container_name: q1_aggregator
     depends_on:
-    - gateway
+    - gateway_0
+    - gateway_1
     volumes:
     - ./data/storage:/app/storage
     environment:
@@ -493,6 +524,7 @@ services:
     - INPUT_QUEUE=q1_results
     - OUTPUT_QUEUE=results
     - STORAGE_DIR=/app/storage
+    - GATEWAY_PREFIX=gateway
     - ENGLISH_FILTER_AMOUNT=2
   q2_aggregator:
     build:
@@ -500,7 +532,8 @@ services:
       dockerfile: src/workers/result_aggregator/q2_result_aggregator/Dockerfile
     container_name: q2_aggregator
     depends_on:
-    - gateway
+    - gateway_0
+    - gateway_1
     volumes:
     - ./data/storage:/app/storage
     environment:
@@ -509,6 +542,7 @@ services:
     - INPUT_QUEUE=q2_results
     - OUTPUT_QUEUE=results
     - STORAGE_DIR=/app/storage
+    - GATEWAY_PREFIX=gateway
     - IMAGE_DOWNLOADER_AMOUNT=2
   q3_aggregator:
     build:
@@ -516,7 +550,8 @@ services:
       dockerfile: src/workers/result_aggregator/q3_result_aggregator/Dockerfile
     container_name: q3_aggregator
     depends_on:
-    - gateway
+    - gateway_0
+    - gateway_1
     volumes:
     - ./data/storage:/app/storage
     environment:
@@ -525,6 +560,7 @@ services:
     - INPUT_QUEUE=q3_results
     - OUTPUT_QUEUE=results
     - STORAGE_DIR=/app/storage
+    - GATEWAY_PREFIX=gateway
     - SHARED_WORDS_AGGREGATOR_AMOUNT=2
   q4_aggregator:
     build:
@@ -532,7 +568,8 @@ services:
       dockerfile: src/workers/result_aggregator/q4_result_aggregator/Dockerfile
     container_name: q4_aggregator
     depends_on:
-    - gateway
+    - gateway_0
+    - gateway_1
     volumes:
     - ./data/storage:/app/storage
     environment:
@@ -541,6 +578,7 @@ services:
     - INPUT_QUEUE=final_top_candidates
     - OUTPUT_QUEUE=results
     - STORAGE_DIR=/app/storage
+    - GATEWAY_PREFIX=gateway
     - PARTIAL_TOP_AGGREGATOR_AMOUNT=2
   q5_aggregator:
     build:
@@ -548,7 +586,8 @@ services:
       dockerfile: src/workers/result_aggregator/q5_result_aggregator/Dockerfile
     container_name: q5_aggregator
     depends_on:
-    - gateway
+    - gateway_0
+    - gateway_1
     volumes:
     - ./data/storage:/app/storage
     environment:
@@ -557,4 +596,5 @@ services:
     - INPUT_QUEUE=q5_results
     - OUTPUT_QUEUE=results
     - STORAGE_DIR=/app/storage
+    - GATEWAY_PREFIX=gateway
     - ABOVE_AVERAGE_FILTER_AMOUNT=2

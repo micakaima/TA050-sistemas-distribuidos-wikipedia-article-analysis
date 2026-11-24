@@ -22,22 +22,24 @@ import (
 )
 
 type GatewayConfig struct {
+	Id                 int
 	ServerHost         string
 	ServerPort         string
 	ColumnFilterAmount int
 	ColumnFilterPrefix string
-	OutputQueueName    string
 	MomHost            string
 	MomPort            int
+	GatewayPrefix      string
 	ExpectedQueries    int
 }
 
 type Gateway struct {
+	id                   int
 	registry             clientregistry.ClientRegistry
 	columnFilterExchange middleware.ExchangeMiddleware
 	columnFilterAmount   int
 	columnFilterPrefix   string
-	outputQueue          middleware.Middleware
+	outputExchange       middleware.ExchangeMiddleware
 	listener             net.Listener
 	expectedQueries      int
 	wg                   sync.WaitGroup
@@ -52,7 +54,8 @@ func NewGateway(config GatewayConfig) (*Gateway, error) {
 		return nil, err
 	}
 
-	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueueName, connSettings)
+	outputExchangeRoutingKey := []string{utils.GenerateRoutingKey(config.GatewayPrefix, config.Id)}
+	outputExchange, err := middleware.CreateExchangeMiddleware(config.GatewayPrefix, outputExchangeRoutingKey, connSettings)
 	if err != nil {
 		columnFilterExchange.Close()
 		return nil, err
@@ -61,16 +64,17 @@ func NewGateway(config GatewayConfig) (*Gateway, error) {
 	listener, err := net.Listen("tcp", config.ServerHost+":"+config.ServerPort)
 	if err != nil {
 		columnFilterExchange.Close()
-		outputQueue.Close()
+		outputExchange.Close()
 		return nil, err
 	}
 
 	gateway := &Gateway{
+		id:                   config.Id,
 		registry:             clientregistry.NewClientRegistry(),
 		columnFilterExchange: columnFilterExchange,
 		columnFilterAmount:   config.ColumnFilterAmount,
 		columnFilterPrefix:   config.ColumnFilterPrefix,
-		outputQueue:          outputQueue,
+		outputExchange:       outputExchange,
 		listener:             listener,
 		expectedQueries:      config.ExpectedQueries,
 	}
@@ -85,7 +89,7 @@ func (gateway *Gateway) Run() error {
 	defer close(done)
 
 	utils.SpawnWithWG(&gateway.wg, func() {
-		gateway.outputQueue.StartConsuming(func(msg middleware.Message, ack func(), nack func()) {
+		gateway.outputExchange.StartConsuming(func(msg middleware.Message, ack func(), nack func()) {
 			gateway.handleClientResponse(msg, ack, nack)
 		})
 	})
@@ -100,7 +104,7 @@ func (gateway *Gateway) Run() error {
 		}
 		slog.Info("Client connected...")
 
-		client := clientregistry.NewClientState(conn)
+		client := clientregistry.NewClientState(conn, uint16(gateway.id))
 		gateway.registry.Add(client)
 
 		utils.SpawnWithWG(&gateway.wg, func() {
@@ -128,7 +132,7 @@ func (gateway *Gateway) handleSignals(done chan struct{}) {
 }
 
 func (gateway *Gateway) handleShutdown() {
-	gateway.outputQueue.StopConsuming()
+	gateway.outputExchange.StopConsuming()
 	gateway.registry.WithLock(func(clients map[uint64]clientregistry.ClientState) {
 		for _, clientState := range clients {
 			if err := clientState.Conn.Close(); err != nil {
@@ -140,8 +144,8 @@ func (gateway *Gateway) handleShutdown() {
 	if err := gateway.columnFilterExchange.Close(); err != nil {
 		slog.Debug("While closing column filter exchange")
 	}
-	if err := gateway.outputQueue.Close(); err != nil {
-		slog.Debug("While closing output queue")
+	if err := gateway.outputExchange.Close(); err != nil {
+		slog.Debug("While closing output exchange")
 	}
 }
 
@@ -262,9 +266,9 @@ func (gateway *Gateway) handleClientResponse(msg middleware.Message, ack func(),
 func (gateway *Gateway) handleQueryResult(msg middleware.Message, clientState clientregistry.ClientState, ack func(), nack func()) {
 	queryResult, err := qresult.QueryResultFromBytes([]byte(msg.Body))
 	if err != nil {
-		slog.Debug("While reading from output queue", "err", err)
+		slog.Debug("While reading from output exchange", "err", err)
 		nack()
-		gateway.outputQueue.StopConsuming()
+		gateway.outputExchange.StopConsuming()
 		return
 	}
 	if err := external.WriteQueryResult(clientState.Conn, *queryResult); err != nil {

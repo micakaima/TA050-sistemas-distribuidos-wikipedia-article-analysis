@@ -1,10 +1,10 @@
 package clientregistry
 
 import (
-	"crypto/rand"
-	"encoding/binary"
 	"net"
 	"sync"
+
+	"TA050-sistemas-distribuidos-wikipedia-article-analysis/src/common/utils"
 )
 
 type ClientState struct {
@@ -18,8 +18,8 @@ type ClientRegistry struct {
 	clients map[uint64]ClientState
 }
 
-func NewClientState(conn net.Conn) ClientState {
-	clientId := generateClientId()
+func NewClientState(conn net.Conn, gatewayID uint16) ClientState {
+	clientId := utils.GenerateClientId(gatewayID)
 	return ClientState{
 		Conn:     conn,
 		ClientID: clientId,
@@ -67,10 +67,4 @@ func (registry *ClientRegistry) AddEOF(id uint64) int {
 		return client.EOFsReceived
 	}
 	return 0
-}
-
-func generateClientId() uint64 {
-	var b [8]byte
-	rand.Read(b[:])
-	return binary.BigEndian.Uint64(b[:])
 }

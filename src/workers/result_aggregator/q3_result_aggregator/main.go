@@ -44,16 +44,21 @@ func loadConfig() (aggregator.Config[*qresults.SharedWord], error) {
 		}
 	}
 
+	gatewayPrefix := os.Getenv("GATEWAY_PREFIX")
+	if gatewayPrefix == "" {
+		return aggregator.Config[*qresults.SharedWord]{}, errors.New("GATEWAY_PREFIX environment variable is required")
+	}
+
 	return aggregator.Config[*qresults.SharedWord]{
 		MomHost:         momHost,
 		MomPort:         momPort,
 		InputQueue:      inputQueue,
-		OutputQueue:     outputQueue,
 		StorageDir:      storageDir,
 		StorageName:     "q3",
 		QueryCode:       qresults.Q3Code,
 		ExpectedMsgCode: messages.Q3ResultCode,
 		ExpectedEOFs:    expectedEOFs,
+		GatewayPrefix:   gatewayPrefix,
 		Handler:         &qresults.Q3Result{},
 	}, nil
 }

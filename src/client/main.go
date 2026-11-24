@@ -10,14 +10,14 @@ import (
 )
 
 func loadConfig() (client.ClientConfig, error) {
-	serverHost := os.Getenv("SERVER_HOST")
-	if serverHost == "" {
-		return client.ClientConfig{}, fmt.Errorf(client.ConfigSetupError, "SERVER_HOST")
+	loadBalancerHost := os.Getenv("LOAD_BALANCER_HOST")
+	if loadBalancerHost == "" {
+		return client.ClientConfig{}, fmt.Errorf(client.ConfigSetupError, "LOAD_BALANCER_HOST")
 	}
 
-	serverPort := os.Getenv("SERVER_PORT")
-	if serverPort == "" {
-		return client.ClientConfig{}, fmt.Errorf(client.ConfigSetupError, "SERVER_PORT")
+	loadBalancerPort := os.Getenv("LOAD_BALANCER_PORT")
+	if loadBalancerPort == "" {
+		return client.ClientConfig{}, fmt.Errorf(client.ConfigSetupError, "LOAD_BALANCER_PORT")
 	}
 
 	inputDir := os.Getenv("INPUT_DIR")
@@ -47,8 +47,8 @@ func loadConfig() (client.ClientConfig, error) {
 	}
 
 	return client.ClientConfig{
-		ServerHost:                serverHost,
-		ServerPort:                serverPort,
+		LoadBalancerHost:          loadBalancerHost,
+		LoadBalancerPort:          loadBalancerPort,
 		InputDir:                  inputDir,
 		OutputDir:                 outputDir,
 		BatchSize:                 batchSize,
