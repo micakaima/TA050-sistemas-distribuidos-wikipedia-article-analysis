@@ -1,18 +1,14 @@
 import subprocess, sys, argparse, os, json
+from update_docker_compose import flatten_dict
 
 CONFIG_FILE_PATH = "./scripts/configs/compare_all_outputs_config.json"
-DEFAULT_BASE_DIR1="data/output"
-DEFAULT_BASE_DIR2="data/expected_results"
 
 def load_config(config_path=CONFIG_FILE_PATH):
     if not os.path.exists(config_path):
         raise FileNotFoundError("Config file not found")
     with open(config_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return {
-        "base_dir1": data.get("base_dir1", DEFAULT_BASE_DIR1),
-        "base_dir2": data.get("base_dir2", DEFAULT_BASE_DIR2),
-    }
+    return flatten_dict(data)
 
 # Permite comparar todas las querys results para 1 cliente.
 #   - Los resultados generados deben estar en data/output/output_{ID}

@@ -1,20 +1,16 @@
 import difflib, argparse, pathlib, sys
 from collections import Counter
+from update_docker_compose import flatten_dict
 import os, json
 
-CONFIG_FILE_PATH = "./scripts/configs/generate_different_inputs_config.json"
-DEFAULT_FILE1="data/output/output_0/query_1_result.txt"
-DEFAULT_FILE2="data/expected_results/results_0/query_1_result.txt"
+CONFIG_FILE_PATH = "./scripts/configs/compare_specific_outputs_config.json"
 
 def load_config(config_path=CONFIG_FILE_PATH):
     if not os.path.exists(config_path):
         raise FileNotFoundError("Config file not found")
     with open(config_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return {
-        "file1": data.get("file1", DEFAULT_FILE1),
-        "file2": data.get("file2", DEFAULT_FILE2)
-    }
+    return flatten_dict(data)
 
 # Permite comparar 2 archivos individuales.
 #   - Se debe pasar como argumento '-f1' el path del archivo 1.

@@ -3,15 +3,11 @@ import kagglehub
 import argparse
 import shutil
 import json
+from update_docker_compose import flatten_dict
 
 KAGGLE_DATASET_BASE_PATH = "wikimedia-foundation/wikipedia-structured-contents"
 KAGGLE_EN_FILE_BASE_PATH = "enwiki/data/enwiki_namespace_0_"
 KAGGLE_FR_FILE_BASE_PATH = "frwiki/data/frwiki_namespace_0_"
-DEFAULT_INPUT_BASE_PATH = "./data/input"
-
-DEFAULT_NUM_CLIENTS=3
-DEFAULT_EN_FILES_SAMPLE_AMOUNT=1
-DEFAULT_FR_FILES_SAMPLE_AMOUNT=1
 
 CONFIG_FILE_PATH = "./scripts/configs/generate_different_inputs_config.json"
 
@@ -22,15 +18,7 @@ def load_config(config_path=CONFIG_FILE_PATH):
     with open(config_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    paths_cfg = data.get("paths", {})
-    gen_cfg = data.get("generation", {})
-
-    return {
-        "input_base_path": paths_cfg.get("input_base_path", DEFAULT_INPUT_BASE_PATH),
-        "num_clients": int(gen_cfg.get("num_clients", DEFAULT_NUM_CLIENTS)),
-        "en_files_sample_amount": int(gen_cfg.get("en_files_sample_amount", DEFAULT_EN_FILES_SAMPLE_AMOUNT)),
-        "fr_files_sample_amount": int(gen_cfg.get("fr_files_sample_amount", DEFAULT_FR_FILES_SAMPLE_AMOUNT)),
-    }
+    return flatten_dict(data)
 
 # Permite generar DIFERENTES archivos parquet de input para todos los clientes.
 #   - Recibe como argumento '-en' la cantidad de archivos parquet en ingles a descargar.

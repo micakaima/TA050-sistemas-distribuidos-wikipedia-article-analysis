@@ -4,20 +4,11 @@ import shutil
 import kagglehub
 import json
 import pyarrow.parquet as pq
+from update_docker_compose import flatten_dict
 
 KAGGLE_DATASET_BASE_PATH = "wikimedia-foundation/wikipedia-structured-contents"
 KAGGLE_EN_FILE_BASE_PATH = "enwiki/data/enwiki_namespace_0_"
 KAGGLE_FR_FILE_BASE_PATH = "frwiki/data/frwiki_namespace_0_"
-DEFAULT_INPUT_BASE_PATH = "./data/input"
-DEFAULT_CACHE_BASE_PATH = "./data/cache"
-
-DEFAULT_NUM_CLIENTS = 3
-DEFAULT_MAX_ROWS = 10000
-
-# Factores de densidad promedio de Wikipedia (bytes comprimidos por fila completa)
-DEFAULT_BYTES_PER_ROW_EN = 2391.2
-DEFAULT_BYTES_PER_ROW_FR = 793.5
-DEFAULT_BYTES_PER_COMBINED_ROW = DEFAULT_BYTES_PER_ROW_EN + DEFAULT_BYTES_PER_ROW_FR  # ~3184.7 bytes
 
 CONFIG_FILE_PATH = "./scripts/configs/generate_short_input_config.json"
 
@@ -28,20 +19,7 @@ def load_config(config_path=CONFIG_FILE_PATH):
     with open(config_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    paths_cfg = data.get("paths", {})
-    gen_cfg = data.get("generation", {})
-    bytes_en = float(gen_cfg.get("bytes_per_row_en", DEFAULT_BYTES_PER_ROW_EN))
-    bytes_fr = float(gen_cfg.get("bytes_per_row_fr", DEFAULT_BYTES_PER_ROW_FR))
-
-    return {
-        "input_base_path": paths_cfg.get("input_base_path", DEFAULT_INPUT_BASE_PATH),
-        "cache_base_path": paths_cfg.get("cache_base_path", DEFAULT_CACHE_BASE_PATH),
-        "num_clients": int(gen_cfg.get("num_clients", DEFAULT_NUM_CLIENTS)),
-        "max_rows": int(gen_cfg.get("max_rows", DEFAULT_MAX_ROWS)),
-        "bytes_per_row_en": bytes_en,
-        "bytes_per_row_fr": bytes_fr,
-        "bytes_per_combined_row": bytes_en + bytes_fr,
-    }
+    return flatten_dict(data)
 
 def parse_volume_to_bytes(vol_str):
     if not vol_str:

@@ -2,13 +2,9 @@ import argparse, json, os
 import re
 import sys
 from pathlib import Path
+from update_docker_compose import flatten_dict
 
 CONFIG_FILE_PATH = "./scripts/configs/compare_q2_deterministic_config.json"
-DEFAULT_FILE1="data/output/output_0/query_2_result.txt"
-DEFAULT_FILE2="data/expected_results/result_0/query_2_result.txt"
-DEFAULT_TOLERANCE=0.05
-DEFAULT_ALLOW_EXTERNAL_ERRORS=True
-DEFAULT_VERBOSE=True
 
 RECORD_START = re.compile(rb"^\d+,[^,\r\n]*,\s*https?://")
 
@@ -24,14 +20,7 @@ def load_config(config_path=CONFIG_FILE_PATH):
         raise FileNotFoundError("Config file not found")
     with open(config_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    paths_cfg = data.get("paths", {})
-    return {
-        "file1": paths_cfg.get("file1", DEFAULT_FILE1),
-        "file2": paths_cfg.get("file2", DEFAULT_FILE2),
-        "tolerance": data.get("tolerance", DEFAULT_TOLERANCE), 
-        "allow_external_errors": data.get("allow_external_errors", DEFAULT_ALLOW_EXTERNAL_ERRORS), 
-        "verbose": data.get("verbose", DEFAULT_VERBOSE), 
-    }
+    return flatten_dict(data)
 
 def is_error(payload: bytes):
     stripped = payload.lstrip()
