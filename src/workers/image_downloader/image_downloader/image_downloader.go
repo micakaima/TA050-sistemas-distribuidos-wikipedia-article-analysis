@@ -26,13 +26,11 @@ type Config struct {
 }
 
 type ImageDownloaderWorker struct {
-	inputExchange      middleware.Middleware
-	outputQueue        middleware.Middleware
-	recvEofCountMap    map[uint64]int
-	bioFilterAmount    int
-	maxDownloadRetries int
-	clientTimeout      int
-	userAgent          string
+	inputExchange   middleware.Middleware
+	outputQueue     middleware.Middleware
+	recvEofCountMap map[uint64]int
+	bioFilterAmount int
+	downloader      *logic.Downloader
 }
 
 func New(config Config) (*ImageDownloaderWorker, error) {
@@ -48,14 +46,19 @@ func New(config Config) (*ImageDownloaderWorker, error) {
 		inputExchange.Close()
 		return nil, err
 	}
+
+	downloader := logic.NewDownloader(logic.DownloaderConfig{
+		MaxRetries:    config.MaxDownloadRetries,
+		ClientTimeout: config.ClientTimeout,
+		UserAgent:     config.UserAgent,
+	})
+
 	return &ImageDownloaderWorker{
-		inputExchange:      inputExchange,
-		outputQueue:        outputQueue,
-		recvEofCountMap:    map[uint64]int{},
-		bioFilterAmount:    config.BioFilterAmount,
-		maxDownloadRetries: config.MaxDownloadRetries,
-		clientTimeout:      config.ClientTimeout,
-		userAgent:          config.UserAgent,
+		inputExchange:   inputExchange,
+		outputQueue:     outputQueue,
+		recvEofCountMap: map[uint64]int{},
+		bioFilterAmount: config.BioFilterAmount,
+		downloader:      downloader,
 	}, nil
 }
 
@@ -87,7 +90,7 @@ func (w *ImageDownloaderWorker) handleMessage(msg middleware.Message, ack, nack 
 			nack()
 			return
 		}
-		result := logic.DownloadImage(*batch, w.maxDownloadRetries, w.clientTimeout, w.userAgent)
+		result := w.downloader.DownloadBatch(*batch)
 		resultMessage, err := middleware.NewMessage(msg.ClientID, messages.Q2ResultCode, &result)
 		if err != nil || w.outputQueue.Send(*resultMessage) != nil {
 			nack()

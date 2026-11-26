@@ -21,10 +21,25 @@ const (
 	MissingImageURLError   string = "Missing Image URL Error"
 )
 
-type WikiSummaryResponse struct {
-	Thumbnail *struct {
-		Source string `json:"source"`
-	} `json:"thumbnail"`
+type DownloaderConfig struct {
+	MaxRetries    int
+	ClientTimeout int
+	UserAgent     string
+}
+
+type Downloader struct {
+	client     *http.Client
+	maxRetries int
+	userAgent  string
+}
+
+func NewDownloader(config DownloaderConfig) *Downloader {
+	client := &http.Client{Timeout: time.Duration(config.ClientTimeout) * time.Second}
+	return &Downloader{
+		client:     client,
+		maxRetries: config.MaxRetries,
+		userAgent:  config.UserAgent,
+	}
 }
 
 func calculateBackoff(attempt int, articleID int) time.Duration {
@@ -53,19 +68,19 @@ func areTooManyRequests(resp *http.Response, articleID int) bool {
 	return false
 }
 
-func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAgent string, articleID int) ([]byte, error) {
-	for attempt := 0; attempt < maxRetries; attempt++ {
+func (d *Downloader) requestBytes(targetUrl string, articleID int) ([]byte, error) {
+	for attempt := 0; attempt < d.maxRetries; attempt++ {
 		req, err := http.NewRequest(http.MethodGet, targetUrl, nil)
 		if err != nil {
 			slog.Error("Failed to create HTTP request", "err", err)
 			return nil, fmt.Errorf(InternalErrorPrefix)
 		}
 
-		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("User-Agent", d.userAgent)
 
-		resp, err := client.Do(req)
+		resp, err := d.client.Do(req)
 		if err != nil {
-			if attempt < maxRetries-1 {
+			if attempt < d.maxRetries-1 {
 				slog.Warn("HTTP request failed, retrying", "attempt", attempt+1, "err", err)
 				time.Sleep(calculateBackoff(attempt, articleID))
 				continue
@@ -83,9 +98,13 @@ func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAge
 			return nil, fmt.Errorf(ExternalAPIError, Error404Error)
 		}
 
+		if areTooManyRequests(resp, articleID) {
+			continue
+		}
+
 		slog.Warn("HTTP request failed", "status", resp.StatusCode, "attempt", attempt+1, "err", err)
 
-		if attempt < maxRetries-1 {
+		if attempt < d.maxRetries-1 {
 			time.Sleep(calculateBackoff(attempt, articleID))
 			continue
 		}
@@ -95,8 +114,7 @@ func requestBytes(client *http.Client, targetUrl string, maxRetries int, userAge
 	return nil, fmt.Errorf(ExternalAPIError, FailedAllAttemptsError)
 }
 
-func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries int, clientTimeout int, userAgent string) qresults.Q2Result {
-	client := &http.Client{Timeout: time.Duration(clientTimeout) * time.Second}
+func (d *Downloader) DownloadBatch(records generic.Batch[*messages.ImageCandidate]) qresults.Q2Result {
 	results := qresults.NewEmptyImageArticleBatch(0)
 
 	for _, r := range records.Items {
@@ -127,7 +145,7 @@ func DownloadImage(records generic.Batch[*messages.ImageCandidate], maxRetries i
 			continue
 		}
 
-		imageBytes, err := requestBytes(client, r.ImageURL, maxRetries, userAgent, id)
+		imageBytes, err := d.requestBytes(r.ImageURL, id)
 		if err != nil {
 			slog.Warn("Failed to download image from ImageURL", "article_id", r.ArticleID, "name", r.Name, "err", err)
 			result.Error = err.Error()
