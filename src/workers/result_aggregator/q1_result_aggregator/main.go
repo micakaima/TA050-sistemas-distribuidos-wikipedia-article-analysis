@@ -22,14 +22,16 @@ func loadConfig() (aggregator.Config[*qresults.English2020Article], error) {
 		return aggregator.Config[*qresults.English2020Article]{}, errors.New("MOM_PORT environment variable is required and must be a number")
 	}
 
-	inputQueue := os.Getenv("INPUT_QUEUE")
-	if inputQueue == "" {
-		return aggregator.Config[*qresults.English2020Article]{}, errors.New("INPUT_QUEUE environment variable is required")
+	id := 0
+	if idStr := os.Getenv("ID"); idStr != "" {
+		if val, err := strconv.Atoi(idStr); err == nil {
+			id = val
+		}
 	}
 
-	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if outputQueue == "" {
-		return aggregator.Config[*qresults.English2020Article]{}, errors.New("OUTPUT_QUEUE environment variable is required")
+	inputExchangePrefix := os.Getenv("INPUT_EXCHANGE_PREFIX")
+	if inputExchangePrefix == "" {
+		return aggregator.Config[*qresults.English2020Article]{}, errors.New("INPUT_EXCHANGE_PREFIX environment variable is required")
 	}
 
 	storageDir := os.Getenv("STORAGE_DIR")
@@ -50,16 +52,17 @@ func loadConfig() (aggregator.Config[*qresults.English2020Article], error) {
 	}
 
 	return aggregator.Config[*qresults.English2020Article]{
-		MomHost:         momHost,
-		MomPort:         momPort,
-		InputQueue:      inputQueue,
-		StorageDir:      storageDir,
-		StorageName:     "q1",
-		QueryCode:       qresults.Q1Code,
-		ExpectedMsgCode: messages.Q1ResultCode,
-		ExpectedEOFs:    expectedEOFs,
-		GatewayPrefix:   gatewayPrefix,
-		Handler:         &qresults.Q1Result{},
+		Id:                  id,
+		MomHost:             momHost,
+		MomPort:             momPort,
+		InputExchangePrefix: inputExchangePrefix,
+		StorageDir:          storageDir,
+		StorageName:         "q1",
+		QueryCode:           qresults.Q1Code,
+		ExpectedMsgCode:     messages.Q1ResultCode,
+		ExpectedEOFs:        expectedEOFs,
+		GatewayPrefix:       gatewayPrefix,
+		Handler:             &qresults.Q1Result{},
 	}, nil
 
 }

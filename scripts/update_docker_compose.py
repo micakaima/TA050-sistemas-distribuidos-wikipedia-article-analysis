@@ -102,22 +102,22 @@ def generate_year_filter_containers(docker_compose, config):
 def generate_english_filter_containers(docker_compose, config):
     for i in range(config["cant_english_filters"]):
         container_name = f"english_filter_{i}"
+        depends_list = [f"q1_aggregator_{j}" for j in range(config["cant_q1_aggregators"])]
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",
                 "dockerfile": "src/workers/english_filter/Dockerfile",
             },
             "container_name": container_name,
-            "depends_on": [
-                "q1_aggregator"
-            ],
+            "depends_on": depends_list,
             "environment": [
                 f"ID={i}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
                 "ENGLISH_FILTER_PREFIX=en_candidates",
-                "OUTPUT_QUEUE=q1_results",
-                f"YEAR_FILTER_AMOUNT={config["cant_year_filters"]}"
+                "Q1_AGGREGATOR_PREFIX=q1_results",
+                f"Q1_AGGREGATOR_AMOUNT={config['cant_q1_aggregators']}",
+                f"YEAR_FILTER_AMOUNT={config['cant_year_filters']}"
             ]
         }
 
@@ -137,34 +137,34 @@ def generate_bio_filter_containers(docker_compose, config):
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
                 "BIO_FILTER_PREFIX=bio_candidates",
-                f"IMAGE_DOWNLOADER_AMOUNT={config["cant_image_downloaders"]}",
+                f"IMAGE_DOWNLOADER_AMOUNT={config['cant_image_downloaders']}",
                 "IMAGE_DOWNLOADER_PREFIX=biography_metadata",
-                f"YEAR_FILTER_AMOUNT={config["cant_year_filters"]}"
+                f"YEAR_FILTER_AMOUNT={config['cant_year_filters']}"
             ]
         }
 
 def generate_image_downloader_containers(docker_compose, config):
     for i in range(config["cant_image_downloaders"]):
         container_name = f"image_downloader_{i}"
+        depends_list = [f"q2_aggregator_{j}" for j in range(config["cant_q2_aggregators"])]
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",
                 "dockerfile": "src/workers/image_downloader/Dockerfile",
             },
             "container_name": container_name,
-            "depends_on": [
-                "q2_aggregator",
-            ],
+            "depends_on": depends_list,
             "environment": [
                 f"ID={i}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
                 "IMAGE_DOWNLOADER_PREFIX=biography_metadata",
-                "OUTPUT_QUEUE=q2_results",
-                f"BIO_FILTER_AMOUNT={config["cant_bio_filters"]}",
-                f"MAX_DOWNLOAD_RETRIES={config["max_download_retries"]}",
-                f"CLIENT_TIMEOUT={config["client_timeout"]}",
-                f"USER_AGENT={config["user_agent"]}_{i}",
+                "Q2_AGGREGATOR_PREFIX=q2_results",
+                f"Q2_AGGREGATOR_AMOUNT={config['cant_q2_aggregators']}",
+                f"BIO_FILTER_AMOUNT={config['cant_bio_filters']}",
+                f"MAX_DOWNLOAD_RETRIES={config['max_download_retries']}",
+                f"CLIENT_TIMEOUT={config['client_timeout']}",
+                f"USER_AGENT={config['user_agent']}_{i}",
             ]
         }
 
@@ -190,37 +190,37 @@ def generate_vocabulary_extractor_containers(docker_compose, config):
                 "MOM_PORT=5672",
                 "VOCABULARY_EXTRACTOR_PREFIX=raw_abstracts",
                 "OUTPUT_QUEUE=word_count",
-                f"SHARED_WORDS_AGGREGATOR_AMOUNT={config["cant_shared_words_aggregators"]}",
+                f"SHARED_WORDS_AGGREGATOR_AMOUNT={config['cant_shared_words_aggregators']}",
                 "SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_candidates",
-                f"PARTIAL_TOP_AGGREGATOR_AMOUNT={config["cant_partial_top_aggregators"]}",
+                f"PARTIAL_TOP_AGGREGATOR_AMOUNT={config['cant_partial_top_aggregators']}",
                 "PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_candidates",
-                f"YEAR_SPLITTER_AMOUNT={config["cant_year_splitters"]}",
+                f"YEAR_SPLITTER_AMOUNT={config['cant_year_splitters']}",
                 "YEAR_SPLITTER_PREFIX=year_splitter",
-                f"COLUMN_FILTER_AMOUNT={config["cant_column_filters"]}"
+                f"COLUMN_FILTER_AMOUNT={config['cant_column_filters']}"
             ]
         }
 
 def generate_above_average_filter_containers(docker_compose, config):
     for i in range(config["cant_above_average_filters"]):
         container_name = f"above_average_filter_{i}"
+        depends_list = [f"q5_aggregator_{j}" for j in range(config["cant_q5_aggregators"])]
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",
                 "dockerfile": "src/workers/above_average_filter/Dockerfile"
             },
             "container_name": container_name,
-            "depends_on": [
-                "q5_aggregator"
-            ],
+            "depends_on": depends_list,
             "environment": [
                 f"ID={i}",
                 "ABOVE_AVERAGE_FILTER_PREFIX_DATA=above_average_filter_data",
                 "ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average",
-                f"YEAR_SPLITTER_AMOUNT={config["cant_year_splitters"]}",
+                f"YEAR_SPLITTER_AMOUNT={config['cant_year_splitters']}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
-                "OUTPUT_QUEUE=q5_results",
-                f"BATCH_SIZE={config["above_average_filter_batch_size"]}"
+                "Q5_AGGREGATOR_PREFIX=q5_results",
+                f"Q5_AGGREGATOR_AMOUNT={config['cant_q5_aggregators']}",
+                f"BATCH_SIZE={config['above_average_filter_batch_size']}"
             ]
         }
 
@@ -238,9 +238,9 @@ def generate_old_articles_averager_containers(docker_compose, config):
             "environment": [
                 f"ID={i}",
                 "OLD_ARTICLES_AVERAGER_PREFIX=old_articles_averager",
-                f"ABOVE_AVERAGE_FILTER_AMOUNT={config["cant_above_average_filters"]}",
+                f"ABOVE_AVERAGE_FILTER_AMOUNT={config['cant_above_average_filters']}",
                 "ABOVE_AVERAGE_FILTER_PREFIX_AVERAGE=above_average_filter_average",
-                f"YEAR_SPLITTER_AMOUNT={config["cant_year_splitters"]}",
+                f"YEAR_SPLITTER_AMOUNT={config['cant_year_splitters']}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
             ]
@@ -249,82 +249,84 @@ def generate_old_articles_averager_containers(docker_compose, config):
 def generate_shared_words_aggregator_containers(docker_compose, config):
     for i in range(config["cant_shared_words_aggregators"]):
         container_name = f"shared_words_aggregator_{i}"
+        depends_list = [f"q3_aggregator_{j}" for j in range(config["cant_q3_aggregators"])]
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",
                 "dockerfile": "src/workers/shared_words_aggregator/Dockerfile"
             },
             "container_name": container_name,
-            "depends_on": [
-                "q3_aggregator"
-            ],
+            "depends_on": depends_list,
             "environment": [
                 f"ID={i}",
                 "SHARED_WORDS_AGGREGATOR_PREFIX=shared_words_candidates",
-                "OUTPUT_QUEUE=q3_results",
+                "Q3_AGGREGATOR_PREFIX=q3_results",
+                f"Q3_AGGREGATOR_AMOUNT={config['cant_q3_aggregators']}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
-                f"VOCABULARY_EXTRACTOR_AMOUNT={config["cant_vocabulary_extractors"]}"
+                f"VOCABULARY_EXTRACTOR_AMOUNT={config['cant_vocabulary_extractors']}"
             ]
         }
 
 def generate_partial_top_aggregator_containers(docker_compose, config):
     for i in range(config["cant_partial_top_aggregators"]):
         container_name=f"partial_top_aggregator_{i}"
+        depends_list = [f"q4_aggregator_{j}" for j in range(config["cant_q4_aggregators"])]
         docker_compose["services"][container_name] = {
             "build": {
                 "context": ".",
                 "dockerfile": "src/workers/partial_top_aggregator/Dockerfile"
             },
             "container_name": container_name,
-            "depends_on": [
-                "q4_aggregator"
-            ],
+            "depends_on": depends_list,
             "environment": [
                 f"ID={i}",
                 "PARTIAL_TOP_AGGREGATOR_PREFIX=partial_top_candidates",
-                "OUTPUT_QUEUE=final_top_candidates",
+                "Q4_AGGREGATOR_PREFIX=q4_results",
+                f"Q4_AGGREGATOR_AMOUNT={config['cant_q4_aggregators']}",
                 "MOM_HOST=rabbitmq",
                 "MOM_PORT=5672",
-                f"VOCABULARY_EXTRACTOR_AMOUNT={config["cant_vocabulary_extractors"]}"
+                f"VOCABULARY_EXTRACTOR_AMOUNT={config['cant_vocabulary_extractors']}"
             ]
         }
 
 def generate_result_aggregators(docker_compose, config):
     for i in range(1, 6):
-        container_name = f"q{i}_aggregator"
-        input_queue = f"q{i}_results" if i != 4 else "final_top_candidates"
-        environment_vars = [
-            "MOM_HOST=rabbitmq",
-            "MOM_PORT=5672",
-            f"INPUT_QUEUE={input_queue}",
-            "OUTPUT_QUEUE=results",
-            "STORAGE_DIR=/app/storage",
-            "GATEWAY_PREFIX=gateway"
-        ]
-        if i == 1:
-            environment_vars.append(f"ENGLISH_FILTER_AMOUNT={config["cant_english_filters"]}")
-        elif i == 2:
-            environment_vars.append(f"IMAGE_DOWNLOADER_AMOUNT={config["cant_image_downloaders"]}")
-        elif i == 3:
-            environment_vars.append(f"SHARED_WORDS_AGGREGATOR_AMOUNT={config["cant_shared_words_aggregators"]}")
-        elif i == 4:
-            environment_vars.append(f"PARTIAL_TOP_AGGREGATOR_AMOUNT={config["cant_partial_top_aggregators"]}")
-        elif i == 5:
-            environment_vars.append(f"ABOVE_AVERAGE_FILTER_AMOUNT={config["cant_above_average_filters"]}")
-        depends_list = [f"gateway_{j}" for j in range(config["cant_gateways"])]
-        docker_compose["services"][container_name] = {
-            "build": {
-                "context": ".",
-                "dockerfile": f"src/workers/result_aggregator/q{i}_result_aggregator/Dockerfile"
-            },
-            "container_name": container_name,
-            "depends_on": depends_list,
-            "volumes": [
-                "./data/storage:/app/storage",
-            ],
-            "environment": environment_vars
-        }
+        cant_aggregators = config.get(f"cant_q{i}_aggregators", 1)
+        for j in range(cant_aggregators):
+            container_name = f"q{i}_aggregator_{j}"
+            input_exchange_prefix = f"q{i}_results"
+            environment_vars = [
+                f"ID={j}",
+                "MOM_HOST=rabbitmq",
+                "MOM_PORT=5672",
+                f"INPUT_EXCHANGE_PREFIX={input_exchange_prefix}",
+                "STORAGE_DIR=/app/storage",
+                "GATEWAY_PREFIX=gateway"
+            ]
+            if i == 1:
+                environment_vars.append(f"ENGLISH_FILTER_AMOUNT={config['cant_english_filters']}")
+            elif i == 2:
+                environment_vars.append(f"IMAGE_DOWNLOADER_AMOUNT={config['cant_image_downloaders']}")
+            elif i == 3:
+                environment_vars.append(f"SHARED_WORDS_AGGREGATOR_AMOUNT={config['cant_shared_words_aggregators']}")
+            elif i == 4:
+                environment_vars.append(f"PARTIAL_TOP_AGGREGATOR_AMOUNT={config['cant_partial_top_aggregators']}")
+            elif i == 5:
+                environment_vars.append(f"ABOVE_AVERAGE_FILTER_AMOUNT={config['cant_above_average_filters']}")
+            depends_list = [f"gateway_{k}" for k in range(config["cant_gateways"])]
+            docker_compose["services"][container_name] = {
+                "build": {
+                    "context": ".",
+                    "dockerfile": f"src/workers/result_aggregator/q{i}_result_aggregator/Dockerfile"
+                },
+                "container_name": container_name,
+                "depends_on": depends_list,
+                "volumes": [
+                    f"./data/storage/q{i}_{j}:/app/storage",
+                ],
+                "environment": environment_vars
+            }
 
 def generate_year_splitter_containers(docker_compose, config):
     for i in range(config["cant_year_splitters"]):

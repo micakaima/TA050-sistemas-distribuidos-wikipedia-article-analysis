@@ -30,9 +30,14 @@ func loadConfig() (english_filter.Config, error) {
 		return english_filter.Config{}, errors.New("ENGLISH_FILTER_PREFIX environment variable is required")
 	}
 
-	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if outputQueue == "" {
-		return english_filter.Config{}, errors.New("OUTPUT_QUEUE environment variable is required")
+	q1AggregatorPrefix := os.Getenv("Q1_AGGREGATOR_PREFIX")
+	if q1AggregatorPrefix == "" {
+		return english_filter.Config{}, errors.New("Q1_AGGREGATOR_PREFIX environment variable is required")
+	}
+
+	q1AggregatorAmount, err := strconv.Atoi(os.Getenv("Q1_AGGREGATOR_AMOUNT"))
+	if err != nil {
+		return english_filter.Config{}, errors.New("Q1_AGGREGATOR_AMOUNT environment variable is required and must be a number")
 	}
 
 	yearFilterAmount, err := strconv.Atoi(os.Getenv("YEAR_FILTER_AMOUNT"))
@@ -45,7 +50,8 @@ func loadConfig() (english_filter.Config, error) {
 		MomHost:             momHost,
 		MomPort:             momPort,
 		EnglishFilterPrefix: englishFilterPrefix,
-		OutputQueue:         outputQueue,
+		Q1AggregatorPrefix:  q1AggregatorPrefix,
+		Q1AggregatorAmount:  q1AggregatorAmount,
 		YearFilterAmount:    yearFilterAmount,
 	}, nil
 }

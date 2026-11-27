@@ -20,7 +20,8 @@ type AboveAverageFilterConfig struct {
 	Id                              int
 	MomHost                         string
 	MomPort                         int
-	OutputQueue                     string
+	Q5AggregatorPrefix              string
+	Q5AggregatorAmount              int
 	AboveAverageFilterPrefixData    string
 	AboveAverageFilterPrefixAverage string
 	YearSplitterAmount              int
@@ -30,11 +31,13 @@ type AboveAverageFilterConfig struct {
 type AboveAverageFilterWorker struct {
 	dataInputExchange    middleware.Middleware
 	averageInputExchange middleware.Middleware
-	outputQueue          middleware.Middleware
+	outputExchange       middleware.ExchangeMiddleware
 	batchSize            int
 	clientStates         map[uint64]*ClientState
 	yearSplitterAmount   int
 	lock                 sync.Mutex
+	q5AggregatorPrefix   string
+	q5AggregatorAmount   int
 }
 
 type ClientState struct {
@@ -61,7 +64,7 @@ func New(config AboveAverageFilterConfig) (*AboveAverageFilterWorker, error) {
 		return nil, err
 	}
 
-	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
+	outputExchange, err := middleware.CreateExchangeMiddleware(config.Q5AggregatorPrefix, []string{}, connSettings)
 	if err != nil {
 		dataInputExchange.Close()
 		averageInputExchange.Close()
@@ -70,11 +73,13 @@ func New(config AboveAverageFilterConfig) (*AboveAverageFilterWorker, error) {
 	return &AboveAverageFilterWorker{
 		dataInputExchange:    dataInputExchange,
 		averageInputExchange: averageInputExchange,
-		outputQueue:          outputQueue,
+		outputExchange:       outputExchange,
 		batchSize:            config.BatchSize,
 		clientStates:         map[uint64]*ClientState{},
 		yearSplitterAmount:   config.YearSplitterAmount,
 		lock:                 sync.Mutex{},
+		q5AggregatorPrefix:   config.Q5AggregatorPrefix,
+		q5AggregatorAmount:   config.Q5AggregatorAmount,
 	}, nil
 }
 
@@ -121,8 +126,8 @@ func (w *AboveAverageFilterWorker) shutdown() {
 	if err := w.averageInputExchange.Close(); err != nil {
 		slog.Error("While closing average input exchange", "err", err)
 	}
-	if err := w.outputQueue.Close(); err != nil {
-		slog.Error("While closing output queue", "err", err)
+	if err := w.outputExchange.Close(); err != nil {
+		slog.Error("While closing output exchange", "err", err)
 	}
 }
 
@@ -292,7 +297,9 @@ func (w *AboveAverageFilterWorker) sendBatch(clientID uint64, batch generic.Batc
 	if err != nil {
 		return err
 	}
-	return w.outputQueue.Send(*resultMessage)
+	targetNode := utils.GetTargetNodeByClientID(clientID, w.q5AggregatorAmount)
+	routingKey := utils.GenerateRoutingKey(w.q5AggregatorPrefix, targetNode)
+	return w.outputExchange.SendToKey(*resultMessage, routingKey)
 }
 
 func (w *AboveAverageFilterWorker) sendEOF(clientID uint64) error {
@@ -302,7 +309,9 @@ func (w *AboveAverageFilterWorker) sendEOF(clientID uint64) error {
 		slog.Debug("While creating EOF message", "err", err)
 		return err
 	}
-	if err := w.outputQueue.Send(*eofMsg); err != nil {
+	targetNode := utils.GetTargetNodeByClientID(clientID, w.q5AggregatorAmount)
+	routingKey := utils.GenerateRoutingKey(w.q5AggregatorPrefix, targetNode)
+	if err := w.outputExchange.SendToKey(*eofMsg, routingKey); err != nil {
 		slog.Debug("While sending EOF message", "err", err)
 		return err
 	}

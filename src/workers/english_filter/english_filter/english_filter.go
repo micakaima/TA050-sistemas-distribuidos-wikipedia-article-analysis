@@ -18,15 +18,18 @@ type Config struct {
 	MomHost             string
 	MomPort             int
 	EnglishFilterPrefix string
-	OutputQueue         string
+	Q1AggregatorPrefix  string
+	Q1AggregatorAmount  int
 	YearFilterAmount    int
 }
 
 type EnglishFilterWorker struct {
-	inputExchange    middleware.Middleware
-	outputQueue      middleware.Middleware
-	recvEofCountMap  map[uint64]int
-	yearFilterAmount int
+	inputExchange      middleware.Middleware
+	outputExchange     middleware.ExchangeMiddleware
+	recvEofCountMap    map[uint64]int
+	yearFilterAmount   int
+	q1AggregatorAmount int
+	q1AggregatorPrefix string
 }
 
 func New(config Config) (*EnglishFilterWorker, error) {
@@ -37,16 +40,18 @@ func New(config Config) (*EnglishFilterWorker, error) {
 	if err != nil {
 		return nil, err
 	}
-	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
+	outputExchange, err := middleware.CreateExchangeMiddleware(config.Q1AggregatorPrefix, []string{}, connSettings)
 	if err != nil {
 		inputExchange.Close()
 		return nil, err
 	}
 	return &EnglishFilterWorker{
-		inputExchange:    inputExchange,
-		outputQueue:      outputQueue,
-		recvEofCountMap:  map[uint64]int{},
-		yearFilterAmount: config.YearFilterAmount,
+		inputExchange:      inputExchange,
+		outputExchange:     outputExchange,
+		recvEofCountMap:    map[uint64]int{},
+		yearFilterAmount:   config.YearFilterAmount,
+		q1AggregatorAmount: config.Q1AggregatorAmount,
+		q1AggregatorPrefix: config.Q1AggregatorPrefix,
 	}, nil
 }
 
@@ -80,7 +85,13 @@ func (w *EnglishFilterWorker) handleMessage(msg middleware.Message, ack, nack fu
 		}
 		result := logic.FilterEnglishCandidates(*batch)
 		resultMessage, err := middleware.NewMessage(msg.ClientID, messages.Q1ResultCode, &result)
-		if err != nil || w.outputQueue.Send(*resultMessage) != nil {
+		if err != nil {
+			nack()
+			return
+		}
+		targetNode := utils.GetTargetNodeByClientID(msg.ClientID, w.q1AggregatorAmount)
+		routingKey := utils.GenerateRoutingKey(w.q1AggregatorPrefix, targetNode)
+		if err := w.outputExchange.SendToKey(*resultMessage, routingKey); err != nil {
 			nack()
 			return
 		}
@@ -94,7 +105,13 @@ func (w *EnglishFilterWorker) handleMessage(msg middleware.Message, ack, nack fu
 
 		eof := messages.EofMsg{}
 		eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
-		if err != nil || w.outputQueue.Send(*eofMessage) != nil {
+		if err != nil {
+			nack()
+			return
+		}
+		targetNode := utils.GetTargetNodeByClientID(msg.ClientID, w.q1AggregatorAmount)
+		routingKey := utils.GenerateRoutingKey(w.q1AggregatorPrefix, targetNode)
+		if err := w.outputExchange.SendToKey(*eofMessage, routingKey); err != nil {
 			nack()
 			return
 		}
@@ -110,7 +127,7 @@ func (w *EnglishFilterWorker) shutdown() {
 	if err := w.inputExchange.Close(); err != nil {
 		slog.Error("While closing input exchange", "err", err)
 	}
-	if err := w.outputQueue.Close(); err != nil {
-		slog.Error("While closing output queue", "err", err)
+	if err := w.outputExchange.Close(); err != nil {
+		slog.Error("While closing output exchange", "err", err)
 	}
 }

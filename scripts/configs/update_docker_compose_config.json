@@ -12,7 +12,12 @@
         "cant_old_articles_averagers": 2,
         "cant_above_average_filters": 2,
         "cant_shared_words_aggregators": 2,
-        "cant_partial_top_aggregators": 2
+        "cant_partial_top_aggregators": 2,
+        "cant_q1_aggregators": 2,
+        "cant_q2_aggregators": 2,
+        "cant_q3_aggregators": 2,
+        "cant_q4_aggregators": 2,
+        "cant_q5_aggregators": 2
     },
     "connection": {
         "connection_attempts": 10,

@@ -31,9 +31,14 @@ func loadConfig() (aggregator.PartialTopAggregatorConfig, error) {
 		return aggregator.PartialTopAggregatorConfig{}, fmt.Errorf(errors.ConfigSetupError, "PARTIAL_TOP_AGGREGATOR_PREFIX")
 	}
 
-	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if outputQueue == "" {
-		return aggregator.PartialTopAggregatorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE")
+	q4AggregatorPrefix := os.Getenv("Q4_AGGREGATOR_PREFIX")
+	if q4AggregatorPrefix == "" {
+		return aggregator.PartialTopAggregatorConfig{}, fmt.Errorf(errors.ConfigSetupError, "Q4_AGGREGATOR_PREFIX")
+	}
+
+	q4AggregatorAmount, err := strconv.Atoi(os.Getenv("Q4_AGGREGATOR_AMOUNT"))
+	if err != nil {
+		return aggregator.PartialTopAggregatorConfig{}, fmt.Errorf(errors.ConfigSetupError, "Q4_AGGREGATOR_AMOUNT")
 	}
 
 	vocabularyExtractorAmount := 1
@@ -48,7 +53,8 @@ func loadConfig() (aggregator.PartialTopAggregatorConfig, error) {
 		MomHost:                    momHost,
 		MomPort:                    momPort,
 		PartialTopAggregatorPrefix: partialTopAggregatorPrefix,
-		OutputQueue:                outputQueue,
+		Q4AggregatorPrefix:         q4AggregatorPrefix,
+		Q4AggregatorAmount:         q4AggregatorAmount,
 		VocabularyExtractorAmount:  vocabularyExtractorAmount,
 	}, nil
 }

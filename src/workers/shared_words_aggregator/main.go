@@ -31,9 +31,14 @@ func loadConfig() (aggregator.SharedWordsAggregatorConfig, error) {
 		return aggregator.SharedWordsAggregatorConfig{}, fmt.Errorf(errors.ConfigSetupError, "SHARED_WORDS_AGGREGATOR_PREFIX")
 	}
 
-	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if outputQueue == "" {
-		return aggregator.SharedWordsAggregatorConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE")
+	q3AggregatorPrefix := os.Getenv("Q3_AGGREGATOR_PREFIX")
+	if q3AggregatorPrefix == "" {
+		return aggregator.SharedWordsAggregatorConfig{}, fmt.Errorf(errors.ConfigSetupError, "Q3_AGGREGATOR_PREFIX")
+	}
+
+	q3AggregatorAmount, err := strconv.Atoi(os.Getenv("Q3_AGGREGATOR_AMOUNT"))
+	if err != nil {
+		return aggregator.SharedWordsAggregatorConfig{}, fmt.Errorf(errors.ConfigSetupError, "Q3_AGGREGATOR_AMOUNT")
 	}
 
 	vocabularyExtractorAmount := 1
@@ -48,7 +53,8 @@ func loadConfig() (aggregator.SharedWordsAggregatorConfig, error) {
 		MomHost:                     momHost,
 		MomPort:                     momPort,
 		SharedWordsAggregatorPrefix: sharedWordsAggregatorPrefix,
-		OutputQueue:                 outputQueue,
+		Q3AggregatorPrefix:          q3AggregatorPrefix,
+		Q3AggregatorAmount:          q3AggregatorAmount,
 		VocabularyExtractorAmount:   vocabularyExtractorAmount,
 	}, nil
 }

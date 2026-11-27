@@ -30,9 +30,14 @@ func loadConfig() (image_downloader.Config, error) {
 		return image_downloader.Config{}, errors.New("IMAGE_DOWNLOADER_PREFIX environment variable is required")
 	}
 
-	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if outputQueue == "" {
-		return image_downloader.Config{}, errors.New("OUTPUT_QUEUE environment variable is required")
+	q2AggregatorPrefix := os.Getenv("Q2_AGGREGATOR_PREFIX")
+	if q2AggregatorPrefix == "" {
+		return image_downloader.Config{}, errors.New("Q2_AGGREGATOR_PREFIX environment variable is required")
+	}
+
+	q2AggregatorAmount, err := strconv.Atoi(os.Getenv("Q2_AGGREGATOR_AMOUNT"))
+	if err != nil {
+		return image_downloader.Config{}, errors.New("Q2_AGGREGATOR_AMOUNT environment variable is required and must be a number")
 	}
 
 	bioFilterAmount, err := strconv.Atoi(os.Getenv("BIO_FILTER_AMOUNT"))
@@ -60,7 +65,8 @@ func loadConfig() (image_downloader.Config, error) {
 		MomHost:               momHost,
 		MomPort:               momPort,
 		ImageDownloaderPrefix: imageDownloaderPrefix,
-		OutputQueue:           outputQueue,
+		Q2AggregatorPrefix:    q2AggregatorPrefix,
+		Q2AggregatorAmount:    q2AggregatorAmount,
 		BioFilterAmount:       bioFilterAmount,
 		MaxDownloadRetries:    maxDownloadRetries,
 		ClientTimeout:         clientTimeout,
