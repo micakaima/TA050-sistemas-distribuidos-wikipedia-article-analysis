@@ -18,17 +18,20 @@ type SharedWordsAggregatorConfig struct {
 	MomHost                     string
 	MomPort                     int
 	SharedWordsAggregatorPrefix string
-	OutputQueue                 string
+	Q3AggregatorPrefix          string
+	Q3AggregatorAmount          int
 	VocabularyExtractorAmount   int
 }
 
 type SharedWordsAggregatorWorker struct {
 	inputExchange             middleware.Middleware
-	outputQueue               middleware.Middleware
+	outputExchange            middleware.ExchangeMiddleware
 	clientStates              map[uint64]*ClientState
 	lock                      sync.Mutex
 	recvEofCountMap           map[uint64]int
 	vocabularyExtractorAmount int
+	q3AggregatorPrefix        string
+	q3AggregatorAmount        int
 }
 
 // ClientState guarda, por palabra, el set de idiomas (en/fr) en los que fue vista.
@@ -45,7 +48,7 @@ func New(config SharedWordsAggregatorConfig) (*SharedWordsAggregatorWorker, erro
 		return nil, err
 	}
 
-	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
+	outputExchange, err := middleware.CreateExchangeMiddleware(config.Q3AggregatorPrefix, []string{}, connSettings)
 	if err != nil {
 		inputExchange.Close()
 		return nil, err
@@ -53,11 +56,13 @@ func New(config SharedWordsAggregatorConfig) (*SharedWordsAggregatorWorker, erro
 
 	return &SharedWordsAggregatorWorker{
 		inputExchange:             inputExchange,
-		outputQueue:               outputQueue,
+		outputExchange:            outputExchange,
 		clientStates:              map[uint64]*ClientState{},
 		lock:                      sync.Mutex{},
 		recvEofCountMap:           map[uint64]int{},
 		vocabularyExtractorAmount: config.VocabularyExtractorAmount,
+		q3AggregatorPrefix:        config.Q3AggregatorPrefix,
+		q3AggregatorAmount:        config.Q3AggregatorAmount,
 	}, nil
 }
 
@@ -95,8 +100,8 @@ func (w *SharedWordsAggregatorWorker) shutdown() {
 	if err := w.inputExchange.Close(); err != nil {
 		slog.Error("While closing input exchange", "err", err)
 	}
-	if err := w.outputQueue.Close(); err != nil {
-		slog.Error("While closing output queue", "err", err)
+	if err := w.outputExchange.Close(); err != nil {
+		slog.Error("While closing output exchange", "err", err)
 	}
 }
 
@@ -167,6 +172,9 @@ func (w *SharedWordsAggregatorWorker) saveCandidate(clientID uint64, candidate m
 func (w *SharedWordsAggregatorWorker) handleEOF(msg middleware.Message) error {
 	slog.Info("Received EOF message")
 
+	targetNode := utils.GetTargetNodeByClientID(msg.ClientID, w.q3AggregatorAmount)
+	routingKey := utils.GenerateRoutingKey(w.q3AggregatorPrefix, targetNode)
+
 	partialWords := w.buildPartial(msg.ClientID)
 	const batchSize = 1000
 	wordsBatch := qresults.NewEmptySharedWordBatch(batchSize)
@@ -179,7 +187,7 @@ func (w *SharedWordsAggregatorWorker) handleEOF(msg middleware.Message) error {
 				slog.Debug("While creating Q3 result message", "err", err)
 				return err
 			}
-			if err := w.outputQueue.Send(*resultMsg); err != nil {
+			if err := w.outputExchange.SendToKey(*resultMsg, routingKey); err != nil {
 				slog.Debug("While sending Q3 result message", "err", err)
 				return err
 			}
@@ -193,7 +201,7 @@ func (w *SharedWordsAggregatorWorker) handleEOF(msg middleware.Message) error {
 			slog.Debug("While creating Q3 result message", "err", err)
 			return err
 		}
-		if err := w.outputQueue.Send(*resultMsg); err != nil {
+		if err := w.outputExchange.SendToKey(*resultMsg, routingKey); err != nil {
 			slog.Debug("While sending Q3 result message", "err", err)
 			return err
 		}
@@ -205,7 +213,7 @@ func (w *SharedWordsAggregatorWorker) handleEOF(msg middleware.Message) error {
 		slog.Debug("While creating EOF message", "err", err)
 		return err
 	}
-	if err := w.outputQueue.Send(*eofMsg); err != nil {
+	if err := w.outputExchange.SendToKey(*eofMsg, routingKey); err != nil {
 		slog.Debug("While sending EOF message", "err", err)
 		return err
 	}

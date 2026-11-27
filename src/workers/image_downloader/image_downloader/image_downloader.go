@@ -18,7 +18,8 @@ type Config struct {
 	MomHost               string
 	MomPort               int
 	ImageDownloaderPrefix string
-	OutputQueue           string
+	Q2AggregatorPrefix    string
+	Q2AggregatorAmount    int
 	BioFilterAmount       int
 	MaxDownloadRetries    int
 	ClientTimeout         int
@@ -27,12 +28,14 @@ type Config struct {
 
 type ImageDownloaderWorker struct {
 	inputExchange      middleware.Middleware
-	outputQueue        middleware.Middleware
+	outputExchange     middleware.ExchangeMiddleware
 	recvEofCountMap    map[uint64]int
 	bioFilterAmount    int
 	maxDownloadRetries int
 	clientTimeout      int
 	userAgent          string
+	q2AggregatorPrefix string
+	q2AggregatorAmount int
 }
 
 func New(config Config) (*ImageDownloaderWorker, error) {
@@ -43,19 +46,21 @@ func New(config Config) (*ImageDownloaderWorker, error) {
 	if err != nil {
 		return nil, err
 	}
-	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
+	outputExchange, err := middleware.CreateExchangeMiddleware(config.Q2AggregatorPrefix, []string{}, connSettings)
 	if err != nil {
 		inputExchange.Close()
 		return nil, err
 	}
 	return &ImageDownloaderWorker{
 		inputExchange:      inputExchange,
-		outputQueue:        outputQueue,
+		outputExchange:     outputExchange,
 		recvEofCountMap:    map[uint64]int{},
 		bioFilterAmount:    config.BioFilterAmount,
 		maxDownloadRetries: config.MaxDownloadRetries,
 		clientTimeout:      config.ClientTimeout,
 		userAgent:          config.UserAgent,
+		q2AggregatorPrefix: config.Q2AggregatorPrefix,
+		q2AggregatorAmount: config.Q2AggregatorAmount,
 	}, nil
 }
 
@@ -89,7 +94,13 @@ func (w *ImageDownloaderWorker) handleMessage(msg middleware.Message, ack, nack 
 		}
 		result := logic.DownloadImage(*batch, w.maxDownloadRetries, w.clientTimeout, w.userAgent)
 		resultMessage, err := middleware.NewMessage(msg.ClientID, messages.Q2ResultCode, &result)
-		if err != nil || w.outputQueue.Send(*resultMessage) != nil {
+		if err != nil {
+			nack()
+			return
+		}
+		targetNode := utils.GetTargetNodeByClientID(msg.ClientID, w.q2AggregatorAmount)
+		routingKey := utils.GenerateRoutingKey(w.q2AggregatorPrefix, targetNode)
+		if err := w.outputExchange.SendToKey(*resultMessage, routingKey); err != nil {
 			nack()
 			return
 		}
@@ -103,7 +114,13 @@ func (w *ImageDownloaderWorker) handleMessage(msg middleware.Message, ack, nack 
 
 		eof := messages.EofMsg{}
 		eofMessage, err := middleware.NewMessage(msg.ClientID, messages.EOFCode, &eof)
-		if err != nil || w.outputQueue.Send(*eofMessage) != nil {
+		if err != nil {
+			nack()
+			return
+		}
+		targetNode := utils.GetTargetNodeByClientID(msg.ClientID, w.q2AggregatorAmount)
+		routingKey := utils.GenerateRoutingKey(w.q2AggregatorPrefix, targetNode)
+		if err := w.outputExchange.SendToKey(*eofMessage, routingKey); err != nil {
 			nack()
 			return
 		}
@@ -118,7 +135,7 @@ func (w *ImageDownloaderWorker) shutdown() {
 	if err := w.inputExchange.Close(); err != nil {
 		slog.Error("While closing input exchange", "err", err)
 	}
-	if err := w.outputQueue.Close(); err != nil {
-		slog.Error("While closing output queue", "err", err)
+	if err := w.outputExchange.Close(); err != nil {
+		slog.Error("While closing output exchange", "err", err)
 	}
 }

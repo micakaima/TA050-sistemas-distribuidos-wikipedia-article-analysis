@@ -16,20 +16,22 @@ import (
 )
 
 type Config[T generic.SerializableMessage] struct {
-	MomHost         string
-	MomPort         int
-	InputQueue      string
-	StorageDir      string
-	StorageName     string
-	QueryCode       qresults.QueryResultCode
-	ExpectedMsgCode messages.InnerMsgCode
-	ExpectedEOFs    int
-	Handler         qresults.QueryResultHandler[T]
-	GatewayPrefix   string
+	Id                  int
+	MomHost             string
+	MomPort             int
+	InputExchangePrefix string
+	StorageDir          string
+	StorageName         string
+	QueryCode           qresults.QueryResultCode
+	ExpectedMsgCode     messages.InnerMsgCode
+	ExpectedEOFs        int
+	Handler             qresults.QueryResultHandler[T]
+	GatewayPrefix       string
 }
 
 type Aggregator[T generic.SerializableMessage] struct {
-	inputQueue      middleware.Middleware
+	id              int
+	inputExchange   middleware.Middleware
 	outputExchange  middleware.ExchangeMiddleware
 	storage         *Storage
 	queryCode       qresults.QueryResultCode
@@ -46,14 +48,15 @@ type Aggregator[T generic.SerializableMessage] struct {
 func New[T generic.SerializableMessage](config Config[T]) (*Aggregator[T], error) {
 	settings := middleware.ConnSettings{Hostname: config.MomHost, Port: config.MomPort}
 
-	inputQueue, err := middleware.CreateQueueMiddleware(config.InputQueue, settings)
+	inputRoutingKey := []string{utils.GenerateRoutingKey(config.InputExchangePrefix, config.Id)}
+	inputExchange, err := middleware.CreateExchangeMiddleware(config.InputExchangePrefix, inputRoutingKey, settings)
 	if err != nil {
 		return nil, err
 	}
 
 	outputExchange, err := middleware.CreateExchangeMiddleware(config.GatewayPrefix, []string{}, settings)
 	if err != nil {
-		inputQueue.Close()
+		inputExchange.Close()
 		return nil, err
 	}
 
@@ -63,7 +66,8 @@ func New[T generic.SerializableMessage](config Config[T]) (*Aggregator[T], error
 	}
 
 	return &Aggregator[T]{
-		inputQueue:      inputQueue,
+		id:              config.Id,
+		inputExchange:   inputExchange,
 		outputExchange:  outputExchange,
 		storage:         NewStorage(config.StorageName, config.StorageDir),
 		queryCode:       config.QueryCode,
@@ -82,7 +86,7 @@ func (w *Aggregator[T]) Run() {
 
 	var waitGroup sync.WaitGroup
 	utils.SpawnWithWG(&waitGroup, func() {
-		if err := w.inputQueue.StartConsuming(func(msg middleware.Message, ack, nack func()) {
+		if err := w.inputExchange.StartConsuming(func(msg middleware.Message, ack, nack func()) {
 			w.handleMessage(msg, ack, nack)
 		}); err != nil {
 			slog.Error("Consumer stopped", "err", err)
@@ -90,17 +94,17 @@ func (w *Aggregator[T]) Run() {
 	})
 
 	<-signals
-	w.inputQueue.StopConsuming()
+	w.inputExchange.StopConsuming()
 	waitGroup.Wait()
 	w.shutdown()
 }
 
 func (w *Aggregator[T]) shutdown() {
-	if err := w.inputQueue.Close(); err != nil {
-		slog.Error("While closing input queue", "err", err)
+	if err := w.inputExchange.Close(); err != nil {
+		slog.Error("While closing input exchange", "err", err)
 	}
 	if err := w.outputExchange.Close(); err != nil {
-		slog.Error("While closing output queue", "err", err)
+		slog.Error("While closing output exchange", "err", err)
 	}
 }
 

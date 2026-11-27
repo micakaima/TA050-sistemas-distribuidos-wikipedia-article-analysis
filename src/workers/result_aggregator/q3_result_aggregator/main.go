@@ -22,14 +22,16 @@ func loadConfig() (aggregator.Config[*qresults.SharedWord], error) {
 		return aggregator.Config[*qresults.SharedWord]{}, errors.New("MOM_PORT environment variable is required and must be a number")
 	}
 
-	inputQueue := os.Getenv("INPUT_QUEUE")
-	if inputQueue == "" {
-		return aggregator.Config[*qresults.SharedWord]{}, errors.New("INPUT_QUEUE environment variable is required")
+	id := 0
+	if idStr := os.Getenv("ID"); idStr != "" {
+		if val, err := strconv.Atoi(idStr); err == nil {
+			id = val
+		}
 	}
 
-	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if outputQueue == "" {
-		return aggregator.Config[*qresults.SharedWord]{}, errors.New("OUTPUT_QUEUE environment variable is required")
+	inputExchangePrefix := os.Getenv("INPUT_EXCHANGE_PREFIX")
+	if inputExchangePrefix == "" {
+		return aggregator.Config[*qresults.SharedWord]{}, errors.New("INPUT_EXCHANGE_PREFIX environment variable is required")
 	}
 
 	storageDir := os.Getenv("STORAGE_DIR")
@@ -50,16 +52,17 @@ func loadConfig() (aggregator.Config[*qresults.SharedWord], error) {
 	}
 
 	return aggregator.Config[*qresults.SharedWord]{
-		MomHost:         momHost,
-		MomPort:         momPort,
-		InputQueue:      inputQueue,
-		StorageDir:      storageDir,
-		StorageName:     "q3",
-		QueryCode:       qresults.Q3Code,
-		ExpectedMsgCode: messages.Q3ResultCode,
-		ExpectedEOFs:    expectedEOFs,
-		GatewayPrefix:   gatewayPrefix,
-		Handler:         &qresults.Q3Result{},
+		Id:                  id,
+		MomHost:             momHost,
+		MomPort:             momPort,
+		InputExchangePrefix: inputExchangePrefix,
+		StorageDir:          storageDir,
+		StorageName:         "q3",
+		QueryCode:           qresults.Q3Code,
+		ExpectedMsgCode:     messages.Q3ResultCode,
+		ExpectedEOFs:        expectedEOFs,
+		GatewayPrefix:       gatewayPrefix,
+		Handler:             &qresults.Q3Result{},
 	}, nil
 }
 

@@ -21,17 +21,20 @@ type PartialTopAggregatorConfig struct {
 	MomHost                    string
 	MomPort                    int
 	PartialTopAggregatorPrefix string
-	OutputQueue                string
+	Q4AggregatorPrefix         string
+	Q4AggregatorAmount         int
 	VocabularyExtractorAmount  int
 }
 
 type PartialTopAggregatorWorker struct {
 	inputExchange             middleware.Middleware
-	outputQueue               middleware.Middleware
+	outputExchange            middleware.ExchangeMiddleware
 	clientStates              map[uint64]map[string]uint32
 	lock                      sync.Mutex
 	recvEofCountMap           map[uint64]int
 	vocabularyExtractorAmount int
+	q4AggregatorPrefix        string
+	q4AggregatorAmount        int
 }
 
 func New(config PartialTopAggregatorConfig) (*PartialTopAggregatorWorker, error) {
@@ -43,7 +46,7 @@ func New(config PartialTopAggregatorConfig) (*PartialTopAggregatorWorker, error)
 		return nil, err
 	}
 
-	outputQueue, err := middleware.CreateQueueMiddleware(config.OutputQueue, connSettings)
+	outputExchange, err := middleware.CreateExchangeMiddleware(config.Q4AggregatorPrefix, []string{}, connSettings)
 	if err != nil {
 		inputExchange.Close()
 		return nil, err
@@ -51,11 +54,13 @@ func New(config PartialTopAggregatorConfig) (*PartialTopAggregatorWorker, error)
 
 	return &PartialTopAggregatorWorker{
 		inputExchange:             inputExchange,
-		outputQueue:               outputQueue,
+		outputExchange:            outputExchange,
 		clientStates:              map[uint64]map[string]uint32{},
 		lock:                      sync.Mutex{},
 		recvEofCountMap:           map[uint64]int{},
 		vocabularyExtractorAmount: config.VocabularyExtractorAmount,
+		q4AggregatorPrefix:        config.Q4AggregatorPrefix,
+		q4AggregatorAmount:        config.Q4AggregatorAmount,
 	}, nil
 }
 
@@ -93,8 +98,8 @@ func (w *PartialTopAggregatorWorker) shutdown() {
 	if err := w.inputExchange.Close(); err != nil {
 		slog.Error("While closing input exchange", "err", err)
 	}
-	if err := w.outputQueue.Close(); err != nil {
-		slog.Error("While closing output queue", "err", err)
+	if err := w.outputExchange.Close(); err != nil {
+		slog.Error("While closing output exchange", "err", err)
 	}
 }
 
@@ -157,6 +162,9 @@ func (w *PartialTopAggregatorWorker) saveCandidate(clientID uint64, candidate me
 func (w *PartialTopAggregatorWorker) handleEOF(msg middleware.Message) error {
 	slog.Info("Received EOF message")
 
+	targetNode := utils.GetTargetNodeByClientID(msg.ClientID, w.q4AggregatorAmount)
+	routingKey := utils.GenerateRoutingKey(w.q4AggregatorPrefix, targetNode)
+
 	topWords := w.buildTopWords(msg.ClientID)
 	wordsBatch := qresults.NewEmptyWordFrequencyBatch(len(topWords))
 	for _, word := range topWords {
@@ -169,7 +177,7 @@ func (w *PartialTopAggregatorWorker) handleEOF(msg middleware.Message) error {
 		slog.Debug("While creating Q4 partial result message", "err", err)
 		return err
 	}
-	if err := w.outputQueue.Send(*resultMsg); err != nil {
+	if err := w.outputExchange.SendToKey(*resultMsg, routingKey); err != nil {
 		slog.Debug("While sending Q4 partial result message", "err", err)
 		return err
 	}
@@ -180,7 +188,7 @@ func (w *PartialTopAggregatorWorker) handleEOF(msg middleware.Message) error {
 		slog.Debug("While creating EOF message", "err", err)
 		return err
 	}
-	if err := w.outputQueue.Send(*eofMsg); err != nil {
+	if err := w.outputExchange.SendToKey(*eofMsg, routingKey); err != nil {
 		slog.Debug("While sending EOF message", "err", err)
 		return err
 	}

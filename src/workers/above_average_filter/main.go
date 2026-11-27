@@ -26,9 +26,14 @@ func loadConfig() (abovefilter.AboveAverageFilterConfig, error) {
 		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "MOM_PORT")
 	}
 
-	outputQueue := os.Getenv("OUTPUT_QUEUE")
-	if outputQueue == "" {
-		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "OUTPUT_QUEUE")
+	q5AggregatorPrefix := os.Getenv("Q5_AGGREGATOR_PREFIX")
+	if q5AggregatorPrefix == "" {
+		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "Q5_AGGREGATOR_PREFIX")
+	}
+
+	q5AggregatorAmount, err := strconv.Atoi(os.Getenv("Q5_AGGREGATOR_AMOUNT"))
+	if err != nil {
+		return abovefilter.AboveAverageFilterConfig{}, fmt.Errorf(errors.ConfigSetupError, "Q5_AGGREGATOR_AMOUNT")
 	}
 
 	aboveAverageFilterPrefixData := os.Getenv("ABOVE_AVERAGE_FILTER_PREFIX_DATA")
@@ -55,7 +60,8 @@ func loadConfig() (abovefilter.AboveAverageFilterConfig, error) {
 		Id:                              id,
 		MomHost:                         momHost,
 		MomPort:                         momPort,
-		OutputQueue:                     outputQueue,
+		Q5AggregatorPrefix:              q5AggregatorPrefix,
+		Q5AggregatorAmount:              q5AggregatorAmount,
 		AboveAverageFilterPrefixData:    aboveAverageFilterPrefixData,
 		AboveAverageFilterPrefixAverage: aboveAverageFilterPrefixAverage,
 		YearSplitterAmount:              yearSplitterAmount,
