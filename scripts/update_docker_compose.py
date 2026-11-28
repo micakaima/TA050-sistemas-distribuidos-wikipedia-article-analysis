@@ -165,6 +165,7 @@ def generate_image_downloader_containers(docker_compose, config):
                 f"MAX_DOWNLOAD_RETRIES={config['max_download_retries']}",
                 f"CLIENT_TIMEOUT={config['client_timeout']}",
                 f"USER_AGENT={config['user_agent']}_{i}",
+                f"TIME_LIMIT={config['time_limit']}"
             ]
         }
 

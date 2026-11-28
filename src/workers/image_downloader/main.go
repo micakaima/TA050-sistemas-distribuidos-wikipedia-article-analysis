@@ -60,6 +60,11 @@ func loadConfig() (image_downloader.Config, error) {
 		return image_downloader.Config{}, errors.New("USER_AGENT environment variable is required")
 	}
 
+	timeLimit, err := strconv.Atoi(os.Getenv("TIME_LIMIT"))
+	if err != nil {
+		return image_downloader.Config{}, errors.New("TIME_LIMIT environment variable is required and must be a number")
+	}
+
 	return image_downloader.Config{
 		Id:                    id,
 		MomHost:               momHost,
@@ -71,6 +76,7 @@ func loadConfig() (image_downloader.Config, error) {
 		MaxDownloadRetries:    maxDownloadRetries,
 		ClientTimeout:         clientTimeout,
 		UserAgent:             userAgent,
+		TimeLimit:             timeLimit,
 	}, nil
 }
 

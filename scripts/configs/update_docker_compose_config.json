@@ -30,7 +30,8 @@
     "download": {
         "max_download_retries": 3,
         "client_timeout": 10,
-        "user_agent": "Wikipedia-Article-Analysis/1.0"
+        "user_agent": "Wikipedia-Article-Analysis/1.0",
+        "time_limit": 30
     },
     "output_filename": "docker-compose.yaml"
 }

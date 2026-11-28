@@ -34,6 +34,7 @@ type ImageDownloaderWorker struct {
 	downloader         *logic.Downloader
 	maxDownloadRetries int
 	clientTimeout      int
+	TimeLimit          int
 	userAgent          string
 	q2AggregatorPrefix string
 	q2AggregatorAmount int
@@ -57,6 +58,7 @@ func New(config Config) (*ImageDownloaderWorker, error) {
 		MaxRetries:    config.MaxDownloadRetries,
 		ClientTimeout: config.ClientTimeout,
 		UserAgent:     config.UserAgent,
+		TimeLimit:     config.TimeLimit,
 	})
 
 	return &ImageDownloaderWorker{
@@ -68,6 +70,7 @@ func New(config Config) (*ImageDownloaderWorker, error) {
 		maxDownloadRetries: config.MaxDownloadRetries,
 		clientTimeout:      config.ClientTimeout,
 		userAgent:          config.UserAgent,
+		TimeLimit:          config.TimeLimit,
 		q2AggregatorPrefix: config.Q2AggregatorPrefix,
 		q2AggregatorAmount: config.Q2AggregatorAmount,
 	}, nil
